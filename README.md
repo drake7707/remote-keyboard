@@ -97,4 +97,4 @@ The 3-D printed casing was modified from the original BarButtons design as follo
 - **M5 bolts** used instead of the original M4 bolts for the main assembly.
 - **Heat-set inserts for M3 bolts** replacing the plain holes for the smaller fasteners.
 - **Wemos D1 Mini pocket removed**; the cavity is resized to fit an **ESP32-C3 Zero** (smaller footprint).
-- **LED aperture changed to 5 mm × 5 mm** (square) to match the 5 mm LEDs that were available, replacing the original larger round hole.
+- **LED aperture changed to a 5 mm round hole, 5 mm deep**, so the dome of a standard 5 mm LED just barely protrudes at the surface. The original design used a much larger waterproof LED bezel; here the LED is simply pressed into the hole and sealed with RTV silicone.

@@ -140,7 +140,10 @@ var K=[
   [224,'Mouse Pan Up'],[225,'Mouse Pan Down'],
   [226,'Mouse Pan Left'],[227,'Mouse Pan Right'],
   [228,'Mouse Zoom In (scroll up)'],[229,'Mouse Zoom Out (scroll down)'],
-  [230,'Mouse Click (tap)']
+  [230,'Mouse Click (tap)'],
+  // Pinch-to-zoom — uses the touch-screen digitizer (Report ID 3) so that
+  // apps which require a genuine two-finger gesture can also zoom.
+  [231,'Mouse Pinch Zoom In (spread)'],[232,'Mouse Pinch Zoom Out (contract)']
 ];
 for(var i=97;i<=122;i++) K.push([i, String.fromCharCode(i)]); // a-z
 for(var i=48;i<=57;i++)  K.push([i, String.fromCharCode(i)]); // 0-9

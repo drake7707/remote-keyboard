@@ -42,14 +42,17 @@
 #define KEY_F12  0xCD
 
 // ---------------------------------------------------------------------------
-// Mouse action codes (0xE0–0xE6).
+// Mouse / touch action codes (0xE0–0xE8).
 // These are not real HID scan codes — BLEManager intercepts them in write()
-// and sends BLE HID mouse reports (Report ID 2) instead of keyboard reports.
+// and sends BLE HID mouse (Report ID 2) or touch (Report ID 3) reports
+// instead of keyboard reports.
 // ---------------------------------------------------------------------------
-#define MOUSE_UP          0xE0  // move cursor up    (pan map north)
-#define MOUSE_DOWN        0xE1  // move cursor down  (pan map south)
-#define MOUSE_LEFT        0xE2  // move cursor left  (pan map west)
-#define MOUSE_RIGHT       0xE3  // move cursor right (pan map east)
-#define MOUSE_SCROLL_UP   0xE4  // scroll wheel up   (zoom in)
-#define MOUSE_SCROLL_DOWN 0xE5  // scroll wheel down (zoom out)
-#define MOUSE_CLICK       0xE6  // left button click (tap / select)
+#define MOUSE_UP           0xE0  // move cursor up    (pan map north)
+#define MOUSE_DOWN         0xE1  // move cursor down  (pan map south)
+#define MOUSE_LEFT         0xE2  // move cursor left  (pan map west)
+#define MOUSE_RIGHT        0xE3  // move cursor right (pan map east)
+#define MOUSE_SCROLL_UP    0xE4  // scroll wheel up   (zoom in)
+#define MOUSE_SCROLL_DOWN  0xE5  // scroll wheel down (zoom out)
+#define MOUSE_CLICK        0xE6  // left button click (tap / select)
+#define MOUSE_PINCH_ZOOM_IN  0xE7  // two-finger spread (zoom in  via pinch gesture)
+#define MOUSE_PINCH_ZOOM_OUT 0xE8  // two-finger pinch  (zoom out via pinch gesture)

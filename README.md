@@ -52,10 +52,14 @@ Some navigation apps — including **Waze** — do not respond to keyboard or ar
 | **Mouse Zoom In** | Sends one scroll-wheel-up tick (zoom in) |
 | **Mouse Zoom Out** | Sends one scroll-wheel-down tick (zoom out) |
 | **Mouse Click (tap)** | Sends a momentary left-button click — use to dismiss menus or select a destination |
+| **Mouse Pinch Zoom In (spread)** | Simulates a two-finger spread gesture at screen centre (zoom in) via the touch-screen digitizer |
+| **Mouse Pinch Zoom Out (contract)** | Simulates a two-finger pinch gesture at screen centre (zoom out) via the touch-screen digitizer |
 
 **How cursor centering works:** A HID mouse reports *relative* movement, so each pan event would normally drift the on-screen cursor toward a screen edge, eventually preventing further panning. To avoid this, after every pan drag the firmware immediately sends a second report of equal magnitude in the *opposite* direction — but with the mouse button already **released**. Map apps only pan while the button is held, so this return movement is invisible to the application while the cursor silently returns to its original screen position. The cursor therefore stays centered regardless of how many times you pan.
 
-The device advertises as a **composite BLE HID device** (keyboard + mouse, Report IDs 1 and 2). Both keyboard keys and mouse actions can be assigned to different buttons in the same keymap, so you can mix them freely.
+**How pinch-to-zoom works:** The device includes a third HID report (Report ID 3) that describes a two-contact touch-screen digitizer. When a Pinch Zoom button is pressed the firmware animates two virtual fingers: they start close together at the centre of the screen (coordinate space 0–4096) and then spread apart over ~100 ms (zoom in) or contract over ~100 ms (zoom out). Android's gesture recogniser interprets this as a native pinch-to-zoom, so it works in apps that do not respond to scroll-wheel events. Scroll-wheel zoom (`Mouse Zoom In/Out`) is still available as a lighter-weight alternative — choose whichever works with your app.
+
+The device advertises as a **composite BLE HID device** (keyboard + mouse + touch digitizer, Report IDs 1, 2 and 3). Both keyboard keys and mouse/touch actions can be assigned to different buttons in the same keymap, so you can mix them freely.
 
 > **Important:** Changing the HID descriptor (first flash with mouse support) requires the host to re-enumerate the device.  
 > Use **Clear BLE Bonds & Reboot** from the config page, then re-pair your phone.

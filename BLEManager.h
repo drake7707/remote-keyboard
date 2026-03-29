@@ -67,7 +67,94 @@ static const uint8_t _hidReportDesc[] = {
   0x95, 0x03,   //     Report Count (3)
   0x81, 0x06,   //     Input (Data, Var, Rel)  — X, Y, Wheel
   0xC0,         //   End Collection (Physical)
-  0xC0          // End Collection (mouse Application)
+  0xC0,         // End Collection (mouse Application)
+
+  // --- Touch Screen (Report ID 3) — 2-contact digitizer for pinch-to-zoom ---
+  //
+  // Each contact (5 bytes):
+  //   Byte 0 : [tip(1 bit) | contact_id(4 bits) | padding(3 bits)]
+  //   Bytes 1-2 : X  (uint16 LE, 0–4096)
+  //   Bytes 3-4 : Y  (uint16 LE, 0–4096)
+  // Byte 10  : contact count (0–2)
+  // Total payload: 11 bytes
+  //
+  0x05, 0x0D,        // Usage Page (Digitizers)
+  0x09, 0x04,        // Usage (Touch Screen)
+  0xA1, 0x01,        // Collection (Application)
+  0x85, 0x03,        //   Report ID (3)
+
+  // Contact 1
+  0x09, 0x22,        //   Usage (Finger)
+  0xA1, 0x02,        //   Collection (Logical)
+  0x09, 0x42,        //     Usage (Tip Switch)
+  0x15, 0x00,        //     Logical Minimum (0)
+  0x25, 0x01,        //     Logical Maximum (1)
+  0x75, 0x01,        //     Report Size (1)
+  0x95, 0x01,        //     Report Count (1)
+  0x81, 0x02,        //     Input (Data, Var, Abs) — 1 bit: tip switch
+  0x09, 0x51,        //     Usage (Contact Identifier)
+  0x25, 0x0F,        //     Logical Maximum (15)
+  0x75, 0x04,        //     Report Size (4)
+  0x95, 0x01,        //     Report Count (1)
+  0x81, 0x02,        //     Input (Data, Var, Abs) — 4 bits: contact id
+  0x75, 0x03,        //     Report Size (3)
+  0x95, 0x01,        //     Report Count (1)
+  0x81, 0x01,        //     Input (Const)          — 3 bits: padding → byte boundary
+  0x05, 0x01,        //     Usage Page (Generic Desktop)
+  0x09, 0x30,        //     Usage (X)
+  0x15, 0x00,        //     Logical Minimum (0)
+  0x26, 0x00, 0x10,  //     Logical Maximum (4096)
+  0x75, 0x10,        //     Report Size (16)
+  0x95, 0x01,        //     Report Count (1)
+  0x81, 0x02,        //     Input (Data, Var, Abs) — 16 bits: X
+  0x09, 0x31,        //     Usage (Y)
+  0x26, 0x00, 0x10,  //     Logical Maximum (4096)
+  0x75, 0x10,        //     Report Size (16)
+  0x95, 0x01,        //     Report Count (1)
+  0x81, 0x02,        //     Input (Data, Var, Abs) — 16 bits: Y
+  0xC0,              //   End Collection (Contact 1)
+
+  // Contact 2
+  0x05, 0x0D,        //   Usage Page (Digitizers)
+  0x09, 0x22,        //   Usage (Finger)
+  0xA1, 0x02,        //   Collection (Logical)
+  0x09, 0x42,        //     Usage (Tip Switch)
+  0x15, 0x00,        //     Logical Minimum (0)
+  0x25, 0x01,        //     Logical Maximum (1)
+  0x75, 0x01,        //     Report Size (1)
+  0x95, 0x01,        //     Report Count (1)
+  0x81, 0x02,        //     Input (Data, Var, Abs) — 1 bit: tip switch
+  0x09, 0x51,        //     Usage (Contact Identifier)
+  0x25, 0x0F,        //     Logical Maximum (15)
+  0x75, 0x04,        //     Report Size (4)
+  0x95, 0x01,        //     Report Count (1)
+  0x81, 0x02,        //     Input (Data, Var, Abs) — 4 bits: contact id
+  0x75, 0x03,        //     Report Size (3)
+  0x95, 0x01,        //     Report Count (1)
+  0x81, 0x01,        //     Input (Const)          — 3 bits: padding → byte boundary
+  0x05, 0x01,        //     Usage Page (Generic Desktop)
+  0x09, 0x30,        //     Usage (X)
+  0x15, 0x00,        //     Logical Minimum (0)
+  0x26, 0x00, 0x10,  //     Logical Maximum (4096)
+  0x75, 0x10,        //     Report Size (16)
+  0x95, 0x01,        //     Report Count (1)
+  0x81, 0x02,        //     Input (Data, Var, Abs) — 16 bits: X
+  0x09, 0x31,        //     Usage (Y)
+  0x26, 0x00, 0x10,  //     Logical Maximum (4096)
+  0x75, 0x10,        //     Report Size (16)
+  0x95, 0x01,        //     Report Count (1)
+  0x81, 0x02,        //     Input (Data, Var, Abs) — 16 bits: Y
+  0xC0,              //   End Collection (Contact 2)
+
+  // Contact Count
+  0x05, 0x0D,        //   Usage Page (Digitizers)
+  0x09, 0x54,        //   Usage (Contact Count)
+  0x15, 0x00,        //   Logical Minimum (0)
+  0x25, 0x02,        //   Logical Maximum (2)
+  0x75, 0x08,        //   Report Size (8)
+  0x95, 0x01,        //   Report Count (1)
+  0x81, 0x02,        //   Input (Data, Var, Abs) — 8 bits: contact count
+  0xC0               // End Collection (touch Application)
 };
 
 // ASCII 32..126 → HID scan code. Bit 7 set means LEFT_SHIFT is also needed.
@@ -90,6 +177,14 @@ static const uint8_t _asciiToHid[95] PROGMEM = {
 
 struct KbReport    { uint8_t mod; uint8_t reserved; uint8_t keys[6]; };
 struct MouseReport { uint8_t buttons; int8_t x; int8_t y; int8_t scroll; };
+
+// Per-contact layout for Report ID 3 (touch screen, 5 bytes each):
+//   Byte 0  : bit 0 = Tip Switch, bits 1-4 = Contact ID, bits 5-7 = padding
+//   Bytes 1-2 : X  (uint16 LE, 0–4096)
+//   Bytes 3-4 : Y  (uint16 LE, 0–4096)
+struct TouchContact { uint8_t flags; uint16_t x; uint16_t y; } __attribute__((packed));
+// Full Report ID 3 payload (11 bytes, Report ID prefix handled by NimBLE):
+struct TouchReport  { TouchContact c1; TouchContact c2; uint8_t contactCount; } __attribute__((packed));
 
 // ---------------------------------------------------------------------------
 // BLEManager — manages all BLE keyboard functionality
@@ -117,6 +212,7 @@ public:
     _hid   = new NimBLEHIDDevice(_srv);
     _input      = _hid->getInputReport(1); // keyboard
     _mouseInput = _hid->getInputReport(2); // mouse
+    _touchInput = _hid->getInputReport(3); // touch screen (pinch zoom)
 
     _hid->setManufacturer(_mfr);
     _hid->setPnp(0x02, 0xe502, 0xa111, 0x0210);
@@ -157,20 +253,19 @@ public:
     _hid        = nullptr;
     _input      = nullptr;
     _mouseInput = nullptr;
+    _touchInput = nullptr;
   }
 
   bool isConnected() { return _connected; }
 
-  // Mouse action codes (MOUSE_UP … MOUSE_CLICK) are routed to the HID mouse
-  // report instead of the keyboard report so that apps that do not respond to
-  // keyboard input (e.g. Waze) still receive usable pointer/scroll events.
-  // The codes are defined contiguously (0xE0–0xE6) in KeyCodes.h; any new
-  // mouse code added there must also be handled in mouseAction() below.
+  // Mouse / touch action codes (MOUSE_UP … MOUSE_PINCH_ZOOM_OUT) are routed to
+  // the HID mouse (Report ID 2) or touch (Report ID 3) reports instead of the
+  // keyboard report so that apps that do not respond to keyboard input (e.g.
+  // Waze) still receive usable pointer / scroll / pinch events.
+  // The codes are defined contiguously (0xE0–0xE8) in KeyCodes.h; any new
+  // mouse/touch code added there must also be handled in mouseAction() below.
   void write(uint8_t key) {
-    if (key == MOUSE_UP    || key == MOUSE_DOWN  ||
-        key == MOUSE_LEFT  || key == MOUSE_RIGHT ||
-        key == MOUSE_SCROLL_UP || key == MOUSE_SCROLL_DOWN ||
-        key == MOUSE_CLICK) {
+    if (key >= MOUSE_UP && key <= MOUSE_PINCH_ZOOM_OUT) {
       mouseAction(key);
       return;
     }
@@ -201,12 +296,23 @@ private:
   NimBLEHIDDevice*      _hid        = nullptr;
   NimBLECharacteristic* _input      = nullptr; // keyboard Report ID 1
   NimBLECharacteristic* _mouseInput = nullptr; // mouse    Report ID 2
+  NimBLECharacteristic* _touchInput = nullptr; // touch    Report ID 3
   KbReport              _rep        = {};
   MouseReport           _mouseRep   = {};
 
   // Pixels moved per pan event (used in repeating mode at ~100 ms intervals).
   // Increase for faster panning on high-density screens.
   static const int8_t MOUSE_PAN_STEP = 60;
+
+  // Touch coordinate space for Report ID 3 (0–4096 in both axes).
+  // Pinch gesture: two fingers start close together at screen center,
+  // then spread apart (zoom in) or contract (zoom out).
+  static const uint16_t TOUCH_CENTER_X  = 2048; // horizontal center
+  static const uint16_t TOUCH_CENTER_Y  = 2048; // vertical center
+  static const uint16_t PINCH_START_RAD = 256;  // initial half-spread (fingers close)
+  static const uint16_t PINCH_END_RAD   = 512;  // final   half-spread (fingers apart)
+  static const uint16_t PINCH_STEP_PX   = 64;   // coordinate units moved per animation frame
+  static const int      PINCH_STEP_MS   = 20;   // ms between frames (allows BLE to flush)
 
   void onConnect(NimBLEServer*, NimBLEConnInfo&) override {
     _connected = true;
@@ -244,17 +350,19 @@ private:
   // Mouse helpers — send BLE HID mouse reports (Report ID 2)
   // ---------------------------------------------------------------------------
 
-  // Dispatch a MOUSE_* action code to the appropriate mouse helper.
+  // Dispatch a MOUSE_* / touch action code to the appropriate helper.
   void mouseAction(uint8_t action) {
     if (DEBUG) Serial.printf("[BLE] mouseAction: 0x%02X\n", action);
     switch (action) {
-      case MOUSE_UP:          mouseDrag(0,              -MOUSE_PAN_STEP); break;
-      case MOUSE_DOWN:        mouseDrag(0,               MOUSE_PAN_STEP); break;
-      case MOUSE_LEFT:        mouseDrag(-MOUSE_PAN_STEP, 0);              break;
-      case MOUSE_RIGHT:       mouseDrag( MOUSE_PAN_STEP, 0);              break;
-      case MOUSE_SCROLL_UP:   mouseScroll( 1);                            break;
-      case MOUSE_SCROLL_DOWN: mouseScroll(-1);                            break;
-      case MOUSE_CLICK:       mouseClick();                               break;
+      case MOUSE_UP:             mouseDrag(0,              -MOUSE_PAN_STEP); break;
+      case MOUSE_DOWN:           mouseDrag(0,               MOUSE_PAN_STEP); break;
+      case MOUSE_LEFT:           mouseDrag(-MOUSE_PAN_STEP, 0);              break;
+      case MOUSE_RIGHT:          mouseDrag( MOUSE_PAN_STEP, 0);              break;
+      case MOUSE_SCROLL_UP:      mouseScroll( 1);                            break;
+      case MOUSE_SCROLL_DOWN:    mouseScroll(-1);                            break;
+      case MOUSE_CLICK:          mouseClick();                               break;
+      case MOUSE_PINCH_ZOOM_IN:  touchPinch(true);                          break;
+      case MOUSE_PINCH_ZOOM_OUT: touchPinch(false);                         break;
     }
   }
 
@@ -306,6 +414,75 @@ private:
     delay(10);
     _mouseRep = {0x00, 0, 0, 0};
     sendMouse();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Touch helpers — send BLE HID touch reports (Report ID 3)
+  // ---------------------------------------------------------------------------
+
+  // Simulate a two-finger pinch gesture at screen center.
+  //   zoomIn=true  : fingers spread apart  → zoom in
+  //   zoomIn=false : fingers come together → zoom out
+  //
+  // The gesture is animated over several frames so Android's gesture
+  // recogniser can distinguish it from a tap.  Coordinates live in a
+  // 0–4096 space; Android scales them to the physical display.
+  void touchPinch(bool zoomIn) {
+    // Starting and ending radii depend on direction.
+    uint16_t r    = zoomIn ? PINCH_START_RAD : PINCH_END_RAD;
+    int16_t  step = zoomIn ? (int16_t)PINCH_STEP_PX : -(int16_t)PINCH_STEP_PX;
+    int      steps = (PINCH_END_RAD - PINCH_START_RAD) / PINCH_STEP_PX;
+    // PINCH_END_RAD - PINCH_START_RAD (256) must be evenly divisible by
+    // PINCH_STEP_PX (64) so the animation reaches the target radius exactly.
+    // static_assert cannot reference non-constexpr member consts in all
+    // compilers, so this is enforced by the constant definitions above.
+
+    // Place both fingers on-screen.
+    sendTouch(true,  0, TOUCH_CENTER_X - r, TOUCH_CENTER_Y,
+              true,  1, TOUCH_CENTER_X + r, TOUCH_CENTER_Y, 2);
+    delay(PINCH_STEP_MS);
+
+    // Animate the spread / contract.
+    for (int i = 0; i < steps; i++) {
+      r = (uint16_t)((int16_t)r + step);
+      sendTouch(true,  0, TOUCH_CENTER_X - r, TOUCH_CENTER_Y,
+                true,  1, TOUCH_CENTER_X + r, TOUCH_CENTER_Y, 2);
+      delay(PINCH_STEP_MS);
+    }
+
+    // Lift both fingers (contactCount = 0 signals end of gesture).
+    sendTouch(false, 0, TOUCH_CENTER_X - r, TOUCH_CENTER_Y,
+              false, 1, TOUCH_CENTER_X + r, TOUCH_CENTER_Y, 0);
+  }
+
+  // Send one touch report with two contacts.
+  //   t1/t2    : tip switch (true = finger down)
+  //   id1/id2  : contact IDs (0 and 1)
+  //   x1/y1, x2/y2 : positions in 0–4096 coordinate space
+  //   count    : active contact count (0 = all fingers lifted)
+  void sendTouch(bool t1, uint8_t id1, uint16_t x1, uint16_t y1,
+                 bool t2, uint8_t id2, uint16_t x2, uint16_t y2,
+                 uint8_t count) {
+    TouchReport rep;
+    // flags byte bit layout (matches descriptor): bit 0=tip, bits 1-4=contact id, bits 5-7=padding(0)
+    rep.c1.flags       = (t1 ? 0x01u : 0x00u) | ((id1 & 0x0Fu) << 1);
+    rep.c1.x           = x1;
+    rep.c1.y           = y1;
+    rep.c2.flags       = (t2 ? 0x01u : 0x00u) | ((id2 & 0x0Fu) << 1); // same layout
+    rep.c2.x           = x2;
+    rep.c2.y           = y2;
+    rep.contactCount   = count;
+    if (DEBUG) {
+      Serial.printf("[BLE] sendTouch: connected=%d touchInput=%s | "
+                    "c1=[f=0x%02X x=%u y=%u] c2=[f=0x%02X x=%u y=%u] cnt=%u\n",
+                    (int)_connected, _touchInput ? "ok" : "NULL",
+                    rep.c1.flags, rep.c1.x, rep.c1.y,
+                    rep.c2.flags, rep.c2.x, rep.c2.y, count);
+    }
+    if (_connected && _touchInput) {
+      _touchInput->setValue((uint8_t*)&rep, sizeof(rep));
+      _touchInput->notify();
+    }
   }
 
   void sendMouse() {

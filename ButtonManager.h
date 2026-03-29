@@ -21,14 +21,14 @@ extern const int DEBUG;
 //                             repeating buttons.
 //   onLongPress(btn)        — fired while a non-repeating button is still held,
 //                             once its longPressTime threshold is crossed.
-//   onCombo(held, pressed)  — fired when 'pressed' is pressed while 'held' has
-//                             been held for ≥ SHORT_PRESS_MAX ms.
+//   onCombo(held, pressed)  — fired when 'pressed' is pressed while 'held' is
+//                             already active (even if both appear in the same scan).
 // ---------------------------------------------------------------------------
 
 class ButtonManager {
 public:
   // Timing constants (milliseconds)
-  static const unsigned long SHORT_PRESS_MAX        = 500;   // tap threshold; also combo-detection threshold
+  static const unsigned long SHORT_PRESS_MAX        = 500;   // tap threshold (ms)
   static const unsigned long REPEAT_MS              = 100;   // interval between repeated short-press calls
   static const unsigned long LONG_PRESS_CONFIG_TIME = 5000;  // total hold time to trigger config mode (button 4)
 
@@ -75,7 +75,6 @@ public:
     if (i >= 0) _longPressTime[i] = ms;
   }
  
-
   String oldPrint;
   void print_keypad_state() {
     String str;
@@ -142,14 +141,19 @@ public:
             _longFired[bi]  = false;
             _comboFired[bi] = false;
 
-            // Combo detection: another button held for ≥ SHORT_PRESS_MAX?
+            // Combo detection: another button currently active?
+            // No timing guard — both buttons can appear as PRESSED in the same
+            // scan cycle (now - _pressStart[j] == 0), so a threshold would
+            // silently discard the combo.  Whichever button was registered first
+            // in the key[] array is treated as the "held" button.
+            // Both buttons are marked combo-involved to suppress their individual
+            // short-press events on release.
             for (int j = 0; j < MAX_BTNS; j++) {
               if (j == bi || !_active[j]) continue;
-              if ((now - _pressStart[j]) >= SHORT_PRESS_MAX) {
-                if (_comboHandler) _comboHandler(_btnChar(j), btn);
-                _comboFired[bi] = true;
-                break; // one combo at a time
-              }
+              if (_comboHandler) _comboHandler(_btnChar(j), btn);
+              _comboFired[bi] = true;  // suppress short press for the new button
+              _comboFired[j]  = true;  // suppress short press for the held button too
+              break; // one combo at a time
             }
 
             // Repeating buttons fire immediately on press-down

@@ -143,7 +143,7 @@ void on_long_press(char btn) {
   }
 }
 
-// Combo: 'pressed' was pressed while 'held' had been held for ≥ SHORT_PRESS_MAX
+// Combo: 'pressed' was pressed while 'held' was already active
 void on_combo(char held, char pressed) {
   if (held == '4' && pressed == '3') {
     if (DEBUG) Serial.println("Key combo: hold 4 + press 3");

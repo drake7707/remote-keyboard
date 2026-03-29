@@ -126,10 +126,13 @@ void on_short_press(char btn) {
 
   if (status == APP_CONNECTED || status == APP_CONNECTED_BLINK || status == APP_BT_DISCONNECTED) {
     int idx = ConfigManager::btnIndex(btn);
-    if (idx < 0 || configManager.getShortKey(idx) == 0) return;
+    if (idx < 0) return;
 
-    if (DEBUG) { Serial.print("Short press: "); Serial.println(btn); }
-    bleManager.write(configManager.getShortKey(idx));
+    uint8_t shortKey = configManager.getShortKey(idx);
+    if (shortKey == 0) return;
+
+    if (DEBUG) { Serial.print("Short press: "); Serial.print(btn); Serial.printf(" -> key=0x%02X (%d)\n", shortKey, shortKey); }
+    bleManager.write(shortKey);
 
     // Skip the blocking LED flash during auto-repeat to avoid disrupting the cadence
     // (auto-repeat buttons have no distinct long-press action: getLongKey == 0)
@@ -152,9 +155,10 @@ void on_long_press(char btn) {
   int idx = ConfigManager::btnIndex(btn);
   if (idx < 0) return;
 
-  if (DEBUG) { Serial.print("Long press: "); Serial.println(btn); }
-  if (configManager.getLongKey(idx) != 0) {
-    bleManager.write(configManager.getLongKey(idx));
+  uint8_t longKey = configManager.getLongKey(idx);
+  if (DEBUG) Serial.printf("Long press: %c -> key=0x%02X (%d)\n", btn, longKey, longKey);
+  if (longKey != 0) {
+    bleManager.write(longKey);
     ledManager.flashLed(1, 150, 0);
   }
 }

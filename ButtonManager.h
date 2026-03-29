@@ -74,12 +74,52 @@ public:
     int i = _btnIdx(btn);
     if (i >= 0) _longPressTime[i] = ms;
   }
+ 
+
+  String oldPrint;
+  void print_keypad_state() {
+    String str;
+    
+    for (int i = 0; i < LIST_MAX; i++) {
+      char     btn = _keypad.key[i].kchar;
+      KeyState ks  = _keypad.key[i].kstate;
+    
+      if (btn == NO_KEY) continue;
+
+      int bi = _btnIdx(btn);
+      if (bi < 0) continue;
+
+      str += btn;
+      str += "=";
+      switch(ks) {
+        case PRESSED:
+          str += "P";
+          break;
+        case HOLD:
+          str += "H";
+          break;
+        case RELEASED:
+          str += "R";
+          break;
+        case IDLE:
+          str += "I";
+          break;
+      }
+      str += " ";
+    }
+    if(str != oldPrint)
+      Serial.println(str);
+    oldPrint = str;
+  
+  }
 
   // ---- Main update loop ----------------------------------------------------
   // Call every loop() iteration.  Scans the matrix and fires callbacks.
   void update() {
     _keypad.getKey();               // scan the matrix; updates _keypad.key[]
     unsigned long now = millis();
+
+    if(DEBUG) print_keypad_state();
 
     for (int i = 0; i < LIST_MAX; i++) {
       char     btn = _keypad.key[i].kchar;
@@ -94,6 +134,7 @@ public:
 
         case PRESSED:
           if (!_active[bi]) {
+            if (DEBUG) { Serial.print("[BUTTON] "); Serial.print(btn); Serial.println(" PRESSED");}
             // New press — initialise per-button tracking
             _active[bi]     = true;
             _pressStart[bi] = now;
@@ -141,6 +182,7 @@ public:
 
         case RELEASED:
           if (_active[bi]) {
+            if (DEBUG) { Serial.print("[BUTTON] "); Serial.print(btn); Serial.println(" RELEASED");}
             unsigned long held = now - _pressStart[bi];
             _active[bi] = false;
             // Short press fires on release for a genuine tap (< SHORT_PRESS_MAX,

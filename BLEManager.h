@@ -11,9 +11,10 @@
 extern const int DEBUG;
 
 // ---------------------------------------------------------------------------
-// Standard boot-compatible HID keyboard descriptor (8-byte report, Report ID 1)
+// Combined HID report descriptor — keyboard (Report ID 1) + mouse (Report ID 2)
 // ---------------------------------------------------------------------------
 static const uint8_t _hidReportDesc[] = {
+  // --- Keyboard (Report ID 1) ---
   0x05, 0x01,   // Usage Page (Generic Desktop)
   0x09, 0x06,   // Usage (Keyboard)
   0xA1, 0x01,   // Collection (Application)
@@ -36,7 +37,37 @@ static const uint8_t _hidReportDesc[] = {
   0x19, 0x00,   //   Usage Minimum (0)
   0x29, 0x65,   //   Usage Maximum (101)
   0x81, 0x00,   //   Input (Data, Array, Abs)  — key slots
-  0xC0          // End Collection
+  0xC0,         // End Collection (keyboard)
+
+  // --- Mouse (Report ID 2) ---
+  0x05, 0x01,   // Usage Page (Generic Desktop)
+  0x09, 0x02,   // Usage (Mouse)
+  0xA1, 0x01,   // Collection (Application)
+  0x85, 0x02,   //   Report ID (2)
+  0x09, 0x01,   //   Usage (Pointer)
+  0xA1, 0x00,   //   Collection (Physical)
+  0x05, 0x09,   //     Usage Page (Buttons)
+  0x19, 0x01,   //     Usage Minimum (Button 1)
+  0x29, 0x03,   //     Usage Maximum (Button 3)
+  0x15, 0x00,   //     Logical Minimum (0)
+  0x25, 0x01,   //     Logical Maximum (1)
+  0x75, 0x01,   //     Report Size (1)
+  0x95, 0x03,   //     Report Count (3)
+  0x81, 0x02,   //     Input (Data, Var, Abs)  — 3 button bits
+  0x75, 0x05,   //     Report Size (5)
+  0x95, 0x01,   //     Report Count (1)
+  0x81, 0x01,   //     Input (Const)           — 5 padding bits
+  0x05, 0x01,   //     Usage Page (Generic Desktop)
+  0x09, 0x30,   //     Usage (X)
+  0x09, 0x31,   //     Usage (Y)
+  0x09, 0x38,   //     Usage (Wheel)
+  0x15, 0x81,   //     Logical Minimum (-127)
+  0x25, 0x7F,   //     Logical Maximum (127)
+  0x75, 0x08,   //     Report Size (8)
+  0x95, 0x03,   //     Report Count (3)
+  0x81, 0x06,   //     Input (Data, Var, Rel)  — X, Y, Wheel
+  0xC0,         //   End Collection (Physical)
+  0xC0          // End Collection (mouse Application)
 };
 
 // ASCII 32..126 → HID scan code. Bit 7 set means LEFT_SHIFT is also needed.
@@ -57,7 +88,8 @@ static const uint8_t _asciiToHid[95] PROGMEM = {
   0xAF,0xB1,0xB0,0xB5                                        // {-~  123-126
 };
 
-struct KbReport { uint8_t mod; uint8_t reserved; uint8_t keys[6]; };
+struct KbReport    { uint8_t mod; uint8_t reserved; uint8_t keys[6]; };
+struct MouseReport { uint8_t buttons; int8_t x; int8_t y; int8_t scroll; };
 
 // ---------------------------------------------------------------------------
 // BLEManager — manages all BLE keyboard functionality
@@ -83,7 +115,8 @@ public:
     _srv->advertiseOnDisconnect(true); // NimBLE restarts advertising automatically
 
     _hid   = new NimBLEHIDDevice(_srv);
-    _input = _hid->getInputReport(1);
+    _input      = _hid->getInputReport(1); // keyboard
+    _mouseInput = _hid->getInputReport(2); // mouse
 
     _hid->setManufacturer(_mfr);
     _hid->setPnp(0x02, 0xe502, 0xa111, 0x0210);
@@ -119,16 +152,28 @@ public:
 
   void end() {
     NimBLEDevice::deinit(false); // false = keep bond data in NVS
-    _connected = false;
-    _srv       = nullptr;
-    _hid       = nullptr;
-    _input     = nullptr;
+    _connected  = false;
+    _srv        = nullptr;
+    _hid        = nullptr;
+    _input      = nullptr;
+    _mouseInput = nullptr;
   }
 
   bool isConnected() { return _connected; }
 
-  // Tap: press then immediately release
+  // Mouse action codes (MOUSE_UP … MOUSE_CLICK) are routed to the HID mouse
+  // report instead of the keyboard report so that apps that do not respond to
+  // keyboard input (e.g. Waze) still receive usable pointer/scroll events.
+  // The codes are defined contiguously (0xE0–0xE6) in KeyCodes.h; any new
+  // mouse code added there must also be handled in mouseAction() below.
   void write(uint8_t key) {
+    if (key == MOUSE_UP    || key == MOUSE_DOWN  ||
+        key == MOUSE_LEFT  || key == MOUSE_RIGHT ||
+        key == MOUSE_SCROLL_UP || key == MOUSE_SCROLL_DOWN ||
+        key == MOUSE_CLICK) {
+      mouseAction(key);
+      return;
+    }
     if (DEBUG) Serial.printf("[BLE] write: key=0x%02X (%d)\n", key, key);
     press(key); delay(10); releaseAll();
   }
@@ -151,11 +196,17 @@ public:
 private:
   const char*           _mfr;
   uint8_t               _bat;
-  bool                  _connected = false;
-  NimBLEServer*         _srv       = nullptr;
-  NimBLEHIDDevice*      _hid       = nullptr;
-  NimBLECharacteristic* _input     = nullptr;
-  KbReport              _rep       = {};
+  bool                  _connected  = false;
+  NimBLEServer*         _srv        = nullptr;
+  NimBLEHIDDevice*      _hid        = nullptr;
+  NimBLECharacteristic* _input      = nullptr; // keyboard Report ID 1
+  NimBLECharacteristic* _mouseInput = nullptr; // mouse    Report ID 2
+  KbReport              _rep        = {};
+  MouseReport           _mouseRep   = {};
+
+  // Pixels moved per pan event (used in repeating mode at ~100 ms intervals).
+  // Increase for faster panning on high-density screens.
+  static const int8_t MOUSE_PAN_STEP = 60;
 
   void onConnect(NimBLEServer*, NimBLEConnInfo&) override {
     _connected = true;
@@ -186,6 +237,70 @@ private:
     if (_connected && _input) {
       _input->setValue((uint8_t*)&_rep, sizeof(_rep));
       _input->notify();
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Mouse helpers — send BLE HID mouse reports (Report ID 2)
+  // ---------------------------------------------------------------------------
+
+  // Dispatch a MOUSE_* action code to the appropriate mouse helper.
+  void mouseAction(uint8_t action) {
+    if (DEBUG) Serial.printf("[BLE] mouseAction: 0x%02X\n", action);
+    switch (action) {
+      case MOUSE_UP:          mouseDrag(0,              -MOUSE_PAN_STEP); break;
+      case MOUSE_DOWN:        mouseDrag(0,               MOUSE_PAN_STEP); break;
+      case MOUSE_LEFT:        mouseDrag(-MOUSE_PAN_STEP, 0);              break;
+      case MOUSE_RIGHT:       mouseDrag( MOUSE_PAN_STEP, 0);              break;
+      case MOUSE_SCROLL_UP:   mouseScroll( 1);                            break;
+      case MOUSE_SCROLL_DOWN: mouseScroll(-1);                            break;
+      case MOUSE_CLICK:       mouseClick();                               break;
+    }
+  }
+
+  // Simulate a short left-button drag in direction (dx, dy).
+  // Android map apps (Waze, Google Maps) interpret click+drag as pan.
+  void mouseDrag(int8_t dx, int8_t dy) {
+    // Press left button with zero movement first so the host anchors the drag.
+    _mouseRep = {0x01, 0, 0, 0};
+    sendMouse();
+    // Apply movement while the button is still held.
+    _mouseRep.x = dx;
+    _mouseRep.y = dy;
+    sendMouse();
+    delay(10);
+    // Release the button.
+    _mouseRep = {0x00, 0, 0, 0};
+    sendMouse();
+  }
+
+  // Send a scroll-wheel tick: positive = scroll up (zoom in), negative = down (zoom out).
+  void mouseScroll(int8_t ticks) {
+    _mouseRep = {0x00, 0, 0, ticks};
+    sendMouse();
+    delay(10);
+    _mouseRep = {0x00, 0, 0, 0};
+    sendMouse();
+  }
+
+  // Send a momentary left-button click (tap / select).
+  void mouseClick() {
+    _mouseRep = {0x01, 0, 0, 0};
+    sendMouse();
+    delay(10);
+    _mouseRep = {0x00, 0, 0, 0};
+    sendMouse();
+  }
+
+  void sendMouse() {
+    if (DEBUG) {
+      Serial.printf("[BLE] sendMouse: connected=%d mouseInput=%s | btns=0x%02X x=%d y=%d scroll=%d\n",
+        (int)_connected, _mouseInput ? "ok" : "NULL",
+        _mouseRep.buttons, _mouseRep.x, _mouseRep.y, _mouseRep.scroll);
+    }
+    if (_connected && _mouseInput) {
+      _mouseInput->setValue((uint8_t*)&_mouseRep, sizeof(_mouseRep));
+      _mouseInput->notify();
     }
   }
 

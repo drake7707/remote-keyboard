@@ -40,3 +40,16 @@
 #define KEY_F10  0xCB
 #define KEY_F11  0xCC
 #define KEY_F12  0xCD
+
+// ---------------------------------------------------------------------------
+// Mouse action codes (0xE0–0xE6).
+// These are not real HID scan codes — BLEManager intercepts them in write()
+// and sends BLE HID mouse reports (Report ID 2) instead of keyboard reports.
+// ---------------------------------------------------------------------------
+#define MOUSE_UP          0xE0  // move cursor up    (pan map north)
+#define MOUSE_DOWN        0xE1  // move cursor down  (pan map south)
+#define MOUSE_LEFT        0xE2  // move cursor left  (pan map west)
+#define MOUSE_RIGHT       0xE3  // move cursor right (pan map east)
+#define MOUSE_SCROLL_UP   0xE4  // scroll wheel up   (zoom in)
+#define MOUSE_SCROLL_DOWN 0xE5  // scroll wheel down (zoom out)
+#define MOUSE_CLICK       0xE6  // left button click (tap / select)

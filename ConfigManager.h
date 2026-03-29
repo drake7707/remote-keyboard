@@ -134,7 +134,13 @@ var K=[
   [218,'Up Arrow'],[217,'Down Arrow'],[216,'Left Arrow'],[215,'Right Arrow'],
   [193,'Caps Lock'],
   [194,'F1'],[195,'F2'],[196,'F3'],[197,'F4'],[198,'F5'],[199,'F6'],
-  [200,'F7'],[201,'F8'],[202,'F9'],[203,'F10'],[204,'F11'],[205,'F12']
+  [200,'F7'],[201,'F8'],[202,'F9'],[203,'F10'],[204,'F11'],[205,'F12'],
+  // Mouse actions — emulate a BLE HID mouse instead of keyboard keys.
+  // Useful for apps that ignore keyboard input (e.g. Waze).
+  [224,'Mouse Pan Up'],[225,'Mouse Pan Down'],
+  [226,'Mouse Pan Left'],[227,'Mouse Pan Right'],
+  [228,'Mouse Zoom In (scroll up)'],[229,'Mouse Zoom Out (scroll down)'],
+  [230,'Mouse Click (tap)']
 ];
 for(var i=97;i<=122;i++) K.push([i, String.fromCharCode(i)]); // a-z
 for(var i=48;i<=57;i++)  K.push([i, String.fromCharCode(i)]); // 0-9

@@ -19,7 +19,7 @@ Based on the original BarButtons v1 firmware, this version replaces the STA-base
 | **Web keymap editor** | Browser UI at `http://192.168.4.1` to configure short and long press actions for all 8 buttons |
 | **NVS persistence** | Keymap stored in flash via the `Preferences` library; survives reboots and firmware updates |
 | **OTA firmware update** | Upload a compiled `.bin` directly from the browser; device reboots automatically |
-| **NimBLE BLE keyboard** | HID keyboard over BLE with secure bonding (Secure Connections, Just Works); CCCD state persisted per peer |
+| **NimBLE BLE HID device** | Composite keyboard + mouse over BLE with secure bonding (Secure Connections, Just Works); CCCD state persisted per peer |
 | **LED status indicator** | Blink pattern varies by state — see table below |
 
 ### LED blink patterns
@@ -41,6 +41,22 @@ Based on the original BarButtons v1 firmware, this version replaces the STA-base
 7. To exit config mode **without** any changes, tap Button 4 on the device.
 
 > **Note:** Button 4 long-press is reserved as the config trigger and cannot be remapped.
+
+### Mouse mode (for apps that ignore keyboard input)
+
+Some navigation apps — including **Waze** — do not respond to keyboard or arrow-key events. For those apps you can assign **mouse actions** to any button directly from the web configuration UI:
+
+| Action code | What it does |
+|---|---|
+| **Mouse Pan Up/Down/Left/Right** | Emulates a left-button micro-drag in the chosen direction — map apps treat this as a pan gesture |
+| **Mouse Zoom In** | Sends one scroll-wheel-up tick (zoom in) |
+| **Mouse Zoom Out** | Sends one scroll-wheel-down tick (zoom out) |
+| **Mouse Click (tap)** | Sends a momentary left-button click — use to dismiss menus or select a destination |
+
+The device advertises as a **composite BLE HID device** (keyboard + mouse, Report IDs 1 and 2). Both keyboard keys and mouse actions can be assigned to different buttons in the same keymap, so you can mix them freely.
+
+> **Important:** Changing the HID descriptor (first flash with mouse support) requires the host to re-enumerate the device.  
+> Use **Clear BLE Bonds & Reboot** from the config page, then re-pair your phone.
 
 ### Button keymap defaults
 

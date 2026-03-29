@@ -52,6 +52,22 @@ BLEManager       bleManager("JaxeADV", 100);
 ConfigManager    configManager;
 ButtonManager    buttonManager;
 
+// Apply the currently active keymap to ButtonManager.
+// Call once in setup() and again whenever the active keymap changes.
+void applyKeymap() {
+  for (int i = 0; i < 8; i++) {
+    char btn = '1' + i;
+    if (i == 3) {
+      // Button 4: config trigger — non-repeating, 5-second total hold threshold
+      buttonManager.setButtonRepeating(btn, false);
+      buttonManager.setButtonLongPressTime(btn, ButtonManager::LONG_PRESS_CONFIG_TIME);
+    } else {
+      // Repeat mode when no distinct long-press action is configured (getLongKey == 0)
+      buttonManager.setButtonRepeating(btn, configManager.getLongKey(i) == 0);
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Config mode — starts the AP, runs the client loop, then restores BLE
 // ---------------------------------------------------------------------------
@@ -145,9 +161,19 @@ void on_long_press(char btn) {
 
 // Combo: 'pressed' was pressed while 'held' was already active
 void on_combo(char held, char pressed) {
-  if (held == '4' && pressed == '3') {
-    if (DEBUG) Serial.println("Key combo: hold 4 + press 3");
-    ledManager.flashLed(3, 100, 50);
+  if (held == '4') {
+    int newKeymap = -1;
+    if      (pressed == '1') newKeymap = 1;
+    else if (pressed == '2') newKeymap = 2;
+    else if (pressed == '3') newKeymap = 3;
+
+    if (newKeymap > 0) {
+      if (DEBUG) Serial.printf("Key combo: hold 4 + press %c -> keymap %d\n", pressed, newKeymap);
+      configManager.setActiveKeymap(newKeymap);
+      applyKeymap();
+      // Flash N times (1/2/3) to acknowledge which keymap is now active
+      ledManager.flashLed(newKeymap, 150, 100);
+    }
   }
 }
 
@@ -164,6 +190,7 @@ void setup() {
 
   configManager.begin(&ledManager, FIRMWARE_VERSION);
   configManager.loadKeymap();
+  configManager.loadActiveKeymap();
   configManager.loadBleName();
 
   bleManager.begin(configManager.getBleName());
@@ -176,20 +203,9 @@ void setup() {
     if (DEBUG) Serial.println("BLE bonds cleared on request.");
   }
 
-  // Initialise ButtonManager and configure per-button behaviour from the keymap
+  // Initialise ButtonManager and apply the active keymap's per-button configuration
   buttonManager.begin();
-
-  for (int i = 0; i < 8; i++) {
-    char btn = '1' + i;
-    if (i == 3) {
-      // Button 4: config trigger — non-repeating, 5-second total hold threshold
-      buttonManager.setButtonRepeating(btn, false);
-      buttonManager.setButtonLongPressTime(btn, ButtonManager::LONG_PRESS_CONFIG_TIME);
-    } else {
-      // Repeat mode when no distinct long-press action is configured (getLongKey == 0)
-      buttonManager.setButtonRepeating(btn, configManager.getLongKey(i) == 0);
-    }
-  }
+  applyKeymap();
 
   buttonManager.setShortPressHandler(on_short_press);
   buttonManager.setLongPressHandler(on_long_press);

@@ -20,8 +20,8 @@ const char DEFAULT_BLE_NAME[] = "BarButtonsMod";
 
 // ---------------------------------------------------------------------------
 // Config web page  (stored in program flash, not RAM)
-// The server replaces the placeholders SHORTVALS, LONGVALS, and BLENAME with
-// the current keymap values and BLE device name before sending.
+// The server replaces the placeholders SHORTVALSn, LONGVALSn, ACTIVEKEYMAP,
+// BLENAME, etc. with current values before sending.
 // ---------------------------------------------------------------------------
 const char CONFIG_HTML[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
@@ -48,19 +48,35 @@ select{width:100%;box-sizing:border-box;padding:3px}
 .field label{font-weight:600;display:block;margin-bottom:4px}
 .field input[type=text]{width:100%;max-width:320px;box-sizing:border-box;
   padding:5px 8px;font-size:1em;border:1px solid #ccc;border-radius:3px}
+.tab{cursor:pointer;padding:7px 18px;border:1px solid #ccc;background:#f5f5f5;
+     font-size:.95em;border-radius:3px 3px 0 0;margin-right:4px}
+.tab.active{background:#2a7cdf;color:#fff;border-color:#2a7cdf}
+.kmtab{border:1px solid #ddd;border-radius:0 4px 4px 4px;padding:10px;margin-bottom:12px}
 </style>
 </head>
 <body>
 <h2>BarButtons Mod Keymap Config</h2>
 <p class="sub">AP configuration mode</p>
 <form method="POST" action="/save">
-<table>
-<thead>
-  <tr><th>Button</th><th>Short Press</th><th>Long Press</th></tr>
-</thead>
-<tbody id="rows"></tbody>
-</table>
-<p class="hint">Button 4 long-press = always enters this config mode (not remappable).<br>
+<div style="margin-bottom:0">
+  <button type="button" id="tab1" class="tab" onclick="showKm(1)">Keymap 1</button>
+  <button type="button" id="tab2" class="tab" onclick="showKm(2)">Keymap 2</button>
+  <button type="button" id="tab3" class="tab" onclick="showKm(3)">Keymap 3</button>
+</div>
+<div id="km1" class="kmtab" style="display:none">
+  <table><thead><tr><th>Button</th><th>Short Press</th><th>Long Press</th></tr></thead>
+  <tbody id="rows1"></tbody></table>
+</div>
+<div id="km2" class="kmtab" style="display:none">
+  <table><thead><tr><th>Button</th><th>Short Press</th><th>Long Press</th></tr></thead>
+  <tbody id="rows2"></tbody></table>
+</div>
+<div id="km3" class="kmtab" style="display:none">
+  <table><thead><tr><th>Button</th><th>Short Press</th><th>Long Press</th></tr></thead>
+  <tbody id="rows3"></tbody></table>
+</div>
+<p class="hint">Active keymap: <strong>ACTIVEKEYMAP</strong> &mdash; switch on device with Button&nbsp;4+1, 4+2, or 4+3 (LED flashes 1/2/3 times to confirm).<br>
+Button 4 long-press = always enters this config mode (not remappable).<br>
 Tap Button 4 on the device to exit without saving.</p>
 <div class="field">
 <label for="blename">BLE Device Name:</label>
@@ -86,7 +102,7 @@ Tap Button 4 on the device to exit without saving.</p>
 </form>
 <hr style="margin:24px 0">
 <h3>Reset to Defaults</h3>
-<p class="sub">Fill in the default keymap and BLE device name. Save &amp; Reboot to apply.</p>
+<p class="sub">Fill in the default keymap for the currently visible tab and the BLE device name. Save &amp; Reboot to apply.</p>
 <button type="button" class="save danger" onclick="resetToDefaults()">Reset to Defaults</button>
 <script>
 document.getElementById('otaFrm').onsubmit=function(){
@@ -101,15 +117,12 @@ document.getElementById('bondFrm').onsubmit=function(){
 };
 var DS=[DEFAULTSHORT];
 var DL=[DEFAULTLONG];
-function resetToDefaults(){
-  var rows=document.getElementById('rows').rows;
-  for(var i=0;i<8;i++){
-    var sels=rows[i].querySelectorAll('select');
-    if(sels[0]) sels[0].value=DS[i];
-    if(sels[1]) sels[1].value=DL[i];
-  }
-  document.getElementById('blename').value=DEFAULTBLENAME;
-}
+var KM=[
+  {S:[SHORTVALS1],L:[LONGVALS1]},
+  {S:[SHORTVALS2],L:[LONGVALS2]},
+  {S:[SHORTVALS3],L:[LONGVALS3]}
+];
+var curKm=ACTIVEKEYMAP;
 // Key options: [code, label]
 var K=[
   [43,'+'],[45,'-'],[42,'*'],[47,'/'],[61,'='],
@@ -126,9 +139,6 @@ var K=[
 for(var i=97;i<=122;i++) K.push([i, String.fromCharCode(i)]); // a-z
 for(var i=48;i<=57;i++)  K.push([i, String.fromCharCode(i)]); // 0-9
 
-var S=[SHORTVALS];
-var L=[LONGVALS];
-
 function buildOpts(cur, withRepeat) {
   var h = '';
   if (withRepeat)
@@ -140,18 +150,40 @@ function buildOpts(cur, withRepeat) {
   return h;
 }
 
-var tbody = document.getElementById('rows');
-for (var i = 0; i < 8; i++) {
-  var tr = document.createElement('tr');
-  // Button 4 (index 3) long press is reserved — show as disabled info cell
-  var longCell = (i === 3)
-    ? '<td><em style="color:#999">reserved (config trigger)</em><input type="hidden" name="l3" value="' + L[3] + '"></td>'
-    : '<td><select name="l' + i + '">' + buildOpts(L[i], true) + '</select></td>';
-  tr.innerHTML =
-    '<td><strong>Button ' + (i + 1) + '</strong></td>' +
-    '<td><select name="s' + i + '">' + buildOpts(S[i], false) + '</select></td>' +
-    longCell;
-  tbody.appendChild(tr);
+for (var km = 1; km <= 3; km++) {
+  var tbody = document.getElementById('rows' + km);
+  var S = KM[km - 1].S, L = KM[km - 1].L;
+  for (var i = 0; i < 8; i++) {
+    var tr = document.createElement('tr');
+    // Button 4 (index 3) long press is reserved — show as disabled info cell
+    var longCell = (i === 3)
+      ? '<td><em style="color:#999">reserved (config trigger)</em><input type="hidden" name="l' + km + '_3" value="' + L[3] + '"></td>'
+      : '<td><select name="l' + km + '_' + i + '">' + buildOpts(L[i], true) + '</select></td>';
+    tr.innerHTML =
+      '<td><strong>Button ' + (i + 1) + '</strong></td>' +
+      '<td><select name="s' + km + '_' + i + '">' + buildOpts(S[i], false) + '</select></td>' +
+      longCell;
+    tbody.appendChild(tr);
+  }
+}
+
+function showKm(n) {
+  document.getElementById('km' + curKm).style.display = 'none';
+  document.getElementById('tab' + curKm).className = 'tab';
+  curKm = n;
+  document.getElementById('km' + curKm).style.display = '';
+  document.getElementById('tab' + curKm).className = 'tab active';
+}
+showKm(curKm);
+
+function resetToDefaults() {
+  var rows = document.getElementById('rows' + curKm).rows;
+  for (var i = 0; i < 8; i++) {
+    var sels = rows[i].querySelectorAll('select');
+    if (sels[0]) sels[0].value = DS[i];
+    if (sels[1]) sels[1].value = DL[i];
+  }
+  document.getElementById('blename').value = DEFAULTBLENAME;
 }
 </script>
 <footer>BarButtonsMod vFWVER &mdash; by <a href="https://github.com/drake7707/" target="_blank" rel="noopener">Drakarah</a> &mdash; <a href="https://github.com/drake7707/" target="_blank" rel="noopener">github.com/drake7707</a>. Derived from <a href='https://jaxeadv.com/barbuttons/'>BarButtons by JADXAdv</a></footer>
@@ -174,32 +206,68 @@ public:
   }
 
   // ---------------------------------------------------------------------------
-  // NVS — keymap
+  // NVS — keymaps (3 slots)
+  // Slot 1 uses namespace "keymap" for backward compatibility with existing
+  // stored data; slots 2 and 3 use "keymap2" / "keymap3".
   // ---------------------------------------------------------------------------
   void loadKeymap() {
-    _prefs.begin("keymap", /*readOnly=*/true);
-    for (int i = 0; i < 8; i++) {
-      _short[i] = _prefs.getUChar(("s" + String(i)).c_str(), DEFAULT_SHORT[i]);
-      _long[i]  = _prefs.getUChar(("l" + String(i)).c_str(), DEFAULT_LONG[i]);
-    }
-    _prefs.end();
-    if (DEBUG) {
-      Serial.println("Keymap loaded from NVS:");
+    const char* namespaces[3] = {"keymap", "keymap2", "keymap3"};
+    for (int km = 0; km < 3; km++) {
+      _prefs.begin(namespaces[km], /*readOnly=*/true);
       for (int i = 0; i < 8; i++) {
-        Serial.printf("  btn%d  short=%d  long=%d\n", i + 1, _short[i], _long[i]);
+        _short[km][i] = _prefs.getUChar(("s" + String(i)).c_str(), DEFAULT_SHORT[i]);
+        _long[km][i]  = _prefs.getUChar(("l" + String(i)).c_str(), DEFAULT_LONG[i]);
+      }
+      _prefs.end();
+    }
+    if (DEBUG) {
+      Serial.println("Keymaps loaded from NVS:");
+      for (int km = 0; km < 3; km++) {
+        Serial.printf("  Keymap %d:\n", km + 1);
+        for (int i = 0; i < 8; i++) {
+          Serial.printf("    btn%d  short=%d  long=%d\n", i + 1, _short[km][i], _long[km][i]);
+        }
       }
     }
   }
 
   void saveKeymap() {
-    _prefs.begin("keymap", /*readOnly=*/false);
-    for (int i = 0; i < 8; i++) {
-      _prefs.putUChar(("s" + String(i)).c_str(), _short[i]);
-      _prefs.putUChar(("l" + String(i)).c_str(), _long[i]);
+    const char* namespaces[3] = {"keymap", "keymap2", "keymap3"};
+    for (int km = 0; km < 3; km++) {
+      _prefs.begin(namespaces[km], /*readOnly=*/false);
+      for (int i = 0; i < 8; i++) {
+        _prefs.putUChar(("s" + String(i)).c_str(), _short[km][i]);
+        _prefs.putUChar(("l" + String(i)).c_str(), _long[km][i]);
+      }
+      _prefs.end();
     }
-    _prefs.end();
-    if (DEBUG) Serial.println("Keymap saved to NVS.");
+    if (DEBUG) Serial.println("All keymaps saved to NVS.");
   }
+
+  // ---------------------------------------------------------------------------
+  // NVS — active keymap index (1, 2, or 3); persisted in "sys" namespace
+  // ---------------------------------------------------------------------------
+  void loadActiveKeymap() {
+    _prefs.begin("sys", /*readOnly=*/true);
+    int saved = (int)_prefs.getUChar("activekm", 1);
+    _prefs.end();
+    _activeKeymap = (saved >= 1 && saved <= 3) ? saved : 1;
+    if (DEBUG) Serial.printf("Active keymap loaded: %d\n", _activeKeymap);
+  }
+
+  // Switch the active keymap and immediately persist the selection.
+  // NVS write is intentional: we want the last-used keymap to survive reboots.
+  // The ESP32 NVS layer applies wear-levelling so infrequent writes are fine.
+  void setActiveKeymap(int slot) {
+    if (slot < 1 || slot > 3) return;
+    _activeKeymap = slot;
+    _prefs.begin("sys", /*readOnly=*/false);
+    _prefs.putUChar("activekm", (uint8_t)_activeKeymap);
+    _prefs.end();
+    if (DEBUG) Serial.printf("Active keymap set to: %d\n", _activeKeymap);
+  }
+
+  int getActiveKeymap() const { return _activeKeymap; }
 
   // ---------------------------------------------------------------------------
   // NVS — BLE device name
@@ -248,8 +316,14 @@ public:
   // ---------------------------------------------------------------------------
   // Keymap / BLE name accessors
   // ---------------------------------------------------------------------------
-  uint8_t getShortKey(int idx) const { return (idx >= 0 && idx < 8) ? _short[idx] : 0; }
-  uint8_t getLongKey(int idx)  const { return (idx >= 0 && idx < 8) ? _long[idx]  : 0; }
+  uint8_t getShortKey(int idx) const {
+    int km = (_activeKeymap >= 1 && _activeKeymap <= 3) ? _activeKeymap - 1 : 0;
+    return (idx >= 0 && idx < 8) ? _short[km][idx] : 0;
+  }
+  uint8_t getLongKey(int idx) const {
+    int km = (_activeKeymap >= 1 && _activeKeymap <= 3) ? _activeKeymap - 1 : 0;
+    return (idx >= 0 && idx < 8) ? _long[km][idx]  : 0;
+  }
   const char* getBleName()     const { return _bleName; }
 
   // Map button label '1'-'8' → keymap index 0-7. Returns -1 for unmapped keys.
@@ -305,8 +379,9 @@ private:
   bool              _exitConfig       = false;
   char              _firmwareVersion[32] = {};
 
-  uint8_t _short[8] = {};
-  uint8_t _long[8]  = {};
+  uint8_t _short[3][8] = {};
+  uint8_t _long[3][8]  = {};
+  int     _activeKeymap = 1;  // 1-based; persisted in NVS
   char    _bleName[BLE_NAME_MAX_LEN + 1] = "BarButtonsMod";
 
   Preferences _prefs;
@@ -320,14 +395,20 @@ private:
   // ---------------------------------------------------------------------------
   void handleRoot() {
     String html = FPSTR(CONFIG_HTML);
-    String sv, lv;
-    for (int i = 0; i < 8; i++) {
-      if (i) { sv += ','; lv += ','; }
-      sv += String(_short[i]);
-      lv += String(_long[i]);
+
+    // Inject keymap values for all 3 keymap slots
+    for (int km = 0; km < 3; km++) {
+      String sv, lv;
+      for (int i = 0; i < 8; i++) {
+        if (i) { sv += ','; lv += ','; }
+        sv += String(_short[km][i]);
+        lv += String(_long[km][i]);
+      }
+      html.replace("SHORTVALS" + String(km + 1), sv);
+      html.replace("LONGVALS"  + String(km + 1), lv);
     }
-    html.replace("SHORTVALS", sv);
-    html.replace("LONGVALS",  lv);
+
+    html.replace("ACTIVEKEYMAP", String(_activeKeymap));
 
     // Build default keymap lists for the JS reset function
     String dsv, dlv;
@@ -338,6 +419,18 @@ private:
     }
     html.replace("DEFAULTSHORT", dsv);
     html.replace("DEFAULTLONG",  dlv);
+
+    // Escape default BLE name for safe embedding as a JS string literal
+    // (must be replaced BEFORE the shorter "BLENAME" placeholder to avoid
+    // corrupting the longer token)
+    String dbn;
+    for (int i = 0; DEFAULT_BLE_NAME[i]; i++) {
+      char c = DEFAULT_BLE_NAME[i];
+      if      (c == '\\') dbn += "\\\\";
+      else if (c == '\'') dbn += "\\'";
+      else                dbn += c;
+    }
+    html.replace("DEFAULTBLENAME", "'" + dbn + "'");
 
     // Escape BLE name for safe use in an HTML attribute value
     String bn;
@@ -351,26 +444,18 @@ private:
     }
     html.replace("BLENAME", bn);
 
-    // Escape default BLE name for safe embedding as a JS string literal
-    String dbn;
-    for (int i = 0; DEFAULT_BLE_NAME[i]; i++) {
-      char c = DEFAULT_BLE_NAME[i];
-      if      (c == '\\') dbn += "\\\\";
-      else if (c == '\'') dbn += "\\'";
-      else                dbn += c;
-    }
-    html.replace("DEFAULTBLENAME", "'" + dbn + "'");
-
     html.replace("FWVER", String(_firmwareVersion));
 
     _server.send(200, "text/html", html);
   }
 
   void handleSave() {
-    for (int i = 0; i < 8; i++) {
-      String si = String(i);
-      if (_server.hasArg("s" + si)) _short[i] = (uint8_t)_server.arg("s" + si).toInt();
-      if (_server.hasArg("l" + si)) _long[i]  = (uint8_t)_server.arg("l" + si).toInt();
+    for (int km = 0; km < 3; km++) {
+      for (int i = 0; i < 8; i++) {
+        String si = String(km + 1) + "_" + String(i);
+        if (_server.hasArg("s" + si)) _short[km][i] = (uint8_t)_server.arg("s" + si).toInt();
+        if (_server.hasArg("l" + si)) _long[km][i]  = (uint8_t)_server.arg("l" + si).toInt();
+      }
     }
     saveKeymap();
 

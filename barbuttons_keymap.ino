@@ -55,8 +55,8 @@ ButtonManager    buttonManager;
 // ---------------------------------------------------------------------------
 // Keypad state tracking
 // ---------------------------------------------------------------------------
-int  last_keypad_state = IDLE;
-bool key4_is_held      = false; // true while key '4' is in HOLD (for combo detection)
+int  last_button_state = IDLE;
+bool button4_is_held   = false; // true while button '4' is in HOLD (for combo detection)
 
 // ---------------------------------------------------------------------------
 // Config mode — starts the AP, runs the client loop, then restores BLE
@@ -85,7 +85,7 @@ void start_config_mode() {
 
   while (!configManager.isExitRequested()) {
     configManager.handleClient();
-    buttonManager.getKey(); // tap of '4' calls keypad_handler → sets exit flag
+    buttonManager.getButton(); // tap of '4' calls keypad_handler → sets exit flag
     ledManager.update();
     delay(5);
   }
@@ -108,7 +108,7 @@ void send_repeating_key(uint8_t key) {
   while (buttonManager.getState() == HOLD) {
     bleManager.write(key);
     delay(ButtonManager::LONG_PRESS_REPEAT_INTERVAL);
-    buttonManager.getKey();
+    buttonManager.getButton();
   }
   digitalWrite(LED_PIN, LOW);
 }
@@ -134,7 +134,7 @@ void send_long_press(KeypadEvent key) {
 
     // Button 4 long-press is always the config trigger, regardless of keymap
     if (key == '4') {
-      if (buttonManager.waitForKeyHold(ButtonManager::LONG_PRESS_TIME_CONFIG)) {
+      if (buttonManager.waitForButtonHold(ButtonManager::LONG_PRESS_TIME_CONFIG)) {
         start_config_mode();
       }
       return;
@@ -174,39 +174,39 @@ void keypad_handler(KeypadEvent key) {
   switch (buttonManager.getState()) {
 
     case PRESSED:
-      last_keypad_state = PRESSED;
+      last_button_state = PRESSED;
       // Detect combo: '3' pressed while '4' is held.
       // The combo takes priority over normal key handling for this press.
       // As long as '4' remains held, pressing '3' again will retrigger the combo.
-      if (key == '3' && key4_is_held) {
+      if (key == '3' && button4_is_held) {
         handle_key_combo_4_3();
-        last_keypad_state = IDLE; // Prevent normal short press on release
+        last_button_state = IDLE; // Prevent normal short press on release
         break;
       }
       if (configManager.isKeyInstant(key) && status != APP_CONFIG) send_short_press(key);
       break;
 
     case HOLD:
-      last_keypad_state = HOLD;
-      if (key == '4') key4_is_held = true;
+      last_button_state = HOLD;
+      if (key == '4') button4_is_held = true;
       send_long_press(key);
       break;
 
     case RELEASED:
-      if (key == '4') key4_is_held = false;
+      if (key == '4') button4_is_held = false;
       // Tap of '4' during config mode exits AP mode without saving
       if (status == APP_CONFIG && key == '4') {
         configManager.setExitRequested(true);
-        last_keypad_state = RELEASED;
+        last_button_state = RELEASED;
         break;
       }
 
-      if (last_keypad_state == PRESSED) {
+      if (last_button_state == PRESSED) {
         if (!(configManager.isKeyInstant(key) && status != APP_CONFIG)) {
           send_short_press(key);
         }
       }
-      last_keypad_state = RELEASED;
+      last_button_state = RELEASED;
 
       if (status == APP_CONNECTED || status == APP_CONNECTED_BLINK) {
         ledManager.resetLedState();
@@ -215,8 +215,8 @@ void keypad_handler(KeypadEvent key) {
       break;
 
     case IDLE:
-      last_keypad_state = IDLE;
-      key4_is_held = false; // Defensive reset: ensure flag is cleared when all keys are idle
+      last_button_state = IDLE;
+      button4_is_held = false; // Defensive reset: ensure flag is cleared when all buttons are idle
 
       if (status == APP_CONNECTED || status == APP_CONNECTED_BLINK) {
         ledManager.resetLedState();
@@ -260,7 +260,7 @@ void setup() {
 // Arduino loop
 // ---------------------------------------------------------------------------
 void loop() {
-  buttonManager.getKey();
+  buttonManager.getButton();
 
   // Track BLE connection state changes
   AppStatus status = ledManager.getStatus();

@@ -17,10 +17,27 @@ Based on the original BarButtons v1 firmware, this version replaces the STA-base
 |---|---|
 | **AP config mode** | Starts a WiFi AP (`BarButtons-Config` / `barbuttons`) on demand |
 | **Web keymap editor** | Browser UI at `http://192.168.4.1` to configure short and long press actions for all 8 buttons |
-| **NVS persistence** | Keymap stored in flash via the `Preferences` library; survives reboots and firmware updates |
+| **Key combos** | Up to 8 configurable 2-button simultaneous-press combos, each sending a distinct key |
+| **NVS persistence** | Keymap and combos stored in flash via the `Preferences` library; survives reboots and firmware updates |
 | **OTA firmware update** | Upload a compiled `.bin` directly from the browser; device reboots automatically |
 | **NimBLE BLE keyboard** | HID keyboard over BLE with secure bonding (Secure Connections, Just Works); CCCD state persisted per peer |
 | **LED status indicator** | Blink pattern varies by state — see table below |
+
+### Key combo detection
+
+The firmware supports up to **8 configurable 2-button combos**. Configure them in the **Key Combos** section of the web UI.
+
+#### Which combos can be reliably detected?
+
+The button matrix has **no diodes**. Ghost keys only appear when **three or more** buttons are pressed at the same time. Therefore **any pair of buttons 1–3 and 5–8** (Button 4 is reserved for config mode) can be detected reliably — all 21 possible pairs work without hardware interference.
+
+| Concern | Rule |
+|---|---|
+| **Hardware ghosting** | Safe for all 2-button pairs; avoid pressing 3+ buttons simultaneously |
+| **Ambiguous combos** | For clean detection, do not assign the same button to more than one active combo slot |
+| **Timing window** | Both buttons must be pressed within ~50 ms of each other; pressing them further apart sends two individual key presses instead |
+
+A combo fires **once** (on the simultaneous press), then is suppressed until both buttons are released.
 
 ### LED blink patterns
 

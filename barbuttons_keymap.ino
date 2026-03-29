@@ -325,7 +325,9 @@ byte      colPins[ROWS]  = {3, 4, 5};
 // ---------------------------------------------------------------------------
 Keypad keypad = Keypad(makeKeymap(keys), rowPins, colPins, ROWS, COLS);
 
-int last_keypad_state = IDLE;
+bool key_was_held[8] = {};   // per-button: true once a HOLD event fires, reset on RELEASED
+bool combo_active    = false; // true while a 2-button combo is being held
+int  combo_active_idx = -1;  // index into combos[] of the active combo (-1 = none)
 
 const int long_press_time            = 500;
 const int long_press_repeat_interval = 100;
@@ -377,6 +379,29 @@ const uint8_t DEFAULT_LONG[8] = {
 };
 
 // ---------------------------------------------------------------------------
+// Key combos — 2-button simultaneous presses
+//
+// Hardware note: with no diodes in the 3×3 switch matrix, ghost keys only
+// appear when THREE or more keys are pressed at the same time.  Any pair of
+// buttons (excluding the reserved Button 4) can therefore be detected
+// reliably.  For unambiguous detection keep each button in at most one active
+// combo slot.
+//
+// A combo fires once when both of its buttons enter the PRESSED state in the
+// same ~50 ms debounce scan window.  Pressing the two buttons more than ~50 ms
+// apart treats each as an independent key press instead.
+// ---------------------------------------------------------------------------
+#define MAX_COMBOS 8
+
+struct ButtonCombo {
+  char    key1;    // button character '1'–'8' (not '4'), or 0 = slot unused
+  char    key2;    // button character '1'–'8' (not '4'), or 0 = slot unused
+  uint8_t action;  // key code to send; 0 = slot unused
+};
+
+ButtonCombo combos[MAX_COMBOS];
+
+// ---------------------------------------------------------------------------
 // NVS — load / save keymap
 // ---------------------------------------------------------------------------
 Preferences prefs;
@@ -404,6 +429,46 @@ void save_keymap() {
   }
   prefs.end();
   if (DEBUG) Serial.println("Keymap saved to NVS.");
+}
+
+// ---------------------------------------------------------------------------
+// NVS — load / save combos
+// ---------------------------------------------------------------------------
+void load_combos() {
+  prefs.begin("combos", /*readOnly=*/true);
+  char key_buf[6]; // "c7k1\0" — longest NVS key name used here is 4 chars + null
+  for (int i = 0; i < MAX_COMBOS; i++) {
+    snprintf(key_buf, sizeof(key_buf), "c%dk1", i);
+    combos[i].key1   = (char)prefs.getUChar(key_buf, 0);
+    snprintf(key_buf, sizeof(key_buf), "c%dk2", i);
+    combos[i].key2   = (char)prefs.getUChar(key_buf, 0);
+    snprintf(key_buf, sizeof(key_buf), "c%da",  i);
+    combos[i].action = prefs.getUChar(key_buf, 0);
+  }
+  prefs.end();
+  if (DEBUG) {
+    Serial.println("Combos loaded from NVS:");
+    for (int i = 0; i < MAX_COMBOS; i++) {
+      if (combos[i].action)
+        Serial.printf("  combo%d: key1=%c key2=%c action=%d\n",
+                      i, combos[i].key1, combos[i].key2, combos[i].action);
+    }
+  }
+}
+
+void save_combos() {
+  prefs.begin("combos", /*readOnly=*/false);
+  char key_buf[6];
+  for (int i = 0; i < MAX_COMBOS; i++) {
+    snprintf(key_buf, sizeof(key_buf), "c%dk1", i);
+    prefs.putUChar(key_buf, (uint8_t)combos[i].key1);
+    snprintf(key_buf, sizeof(key_buf), "c%dk2", i);
+    prefs.putUChar(key_buf, (uint8_t)combos[i].key2);
+    snprintf(key_buf, sizeof(key_buf), "c%da",  i);
+    prefs.putUChar(key_buf, combos[i].action);
+  }
+  prefs.end();
+  if (DEBUG) Serial.println("Combos saved to NVS.");
 }
 
 // ---------------------------------------------------------------------------
@@ -481,6 +546,25 @@ Tap Button 4 on the device to exit without saving.</p>
 <p class="hint">1&#8211;32 printable ASCII characters &mdash; shown in the Bluetooth pairing dialog.</p>
 </div>
 <input type="submit" class="save" value="Save &amp; Reboot">
+</form>
+<hr style="margin:24px 0">
+<h3>Key Combos</h3>
+<p class="sub">Send a key when two buttons are pressed simultaneously.
+Any pair of buttons 1&ndash;3 and 5&ndash;8 can be detected reliably without
+hardware ghosting (ghost keys only appear when three or more buttons are pressed
+at once in a switch matrix without diodes).<br>
+<strong>Tip:</strong> press both buttons within ~50&thinsp;ms for the combo to fire.
+Pressing them further apart sends two individual key presses instead.
+For unambiguous detection, avoid assigning the same button to more than one active combo slot.</p>
+<form method="POST" action="/save">
+<table>
+<thead>
+  <tr><th>Combo</th><th>Button 1</th><th>Button 2</th><th>Action</th></tr>
+</thead>
+<tbody id="comboRows"></tbody>
+</table>
+<p class="hint">Set Button 1 <em>or</em> Button 2 to &ldquo;&mdash;&rdquo; to disable that combo slot. Button 4 is excluded (reserved for config mode).</p>
+<input type="submit" class="save" value="Save Combos &amp; Reboot">
 </form>
 <hr style="margin:24px 0">
 <h3>Firmware Update</h3>
@@ -564,14 +648,51 @@ for (var i = 0; i < 8; i++) {
     longCell;
   tbody.appendChild(tr);
 }
+// Key combos
+// Button options for combo selects (button 4 is reserved)
+var CBTNS=[
+  [0,'\u2014'],
+  [49,'Button 1'],[50,'Button 2'],[51,'Button 3'],
+  [53,'Button 5'],[54,'Button 6'],[55,'Button 7'],[56,'Button 8']
+];
+function buildBtnOpts(cur){
+  var h='';
+  CBTNS.forEach(function(b){
+    var sel=(b[0]===cur)?' selected':'';
+    h+='<option value="'+b[0]+'"'+sel+'>'+b[1]+'</option>';
+  });
+  return h;
+}
+function buildComboActionOpts(cur){
+  var h='<option value="0"'+(cur===0?' selected':'')+'>&#x2014; (disable)</option>';
+  K.forEach(function(k){
+    var sel=(k[0]===cur&&cur!==0)?' selected':'';
+    h+='<option value="'+k[0]+'"'+sel+'>'+k[1]+'</option>';
+  });
+  return h;
+}
+var CK1=[COMBOK1VALS];
+var CK2=[COMBOK2VALS];
+var CKA=[COMBOAVALS];
+var ctbody=document.getElementById('comboRows');
+for(var ci=0;ci<8;ci++){
+  var ctr=document.createElement('tr');
+  ctr.innerHTML=
+    '<td>'+(ci+1)+'</td>'+
+    '<td><select name="ck'+ci+'k1">'+buildBtnOpts(CK1[ci])+'</select></td>'+
+    '<td><select name="ck'+ci+'k2">'+buildBtnOpts(CK2[ci])+'</select></td>'+
+    '<td><select name="ck'+ci+'a">'+buildComboActionOpts(CKA[ci])+'</select></td>';
+  ctbody.appendChild(ctr);
+}
 </script>
 </body>
 </html>
 )rawliteral";
 
 
-// Forward declaration (body defined below with other keypad helpers)
+// Forward declarations (bodies defined below with other keypad helpers)
 void flash_led(int times, int length, int delay_time);
+void process_keypad();
 
 // ---------------------------------------------------------------------------
 // AP / WebServer config mode
@@ -598,6 +719,17 @@ void handle_root() {
   }
   html.replace("DEFAULTSHORT", dsv);
   html.replace("DEFAULTLONG",  dlv);
+  // Build combo value lists for the JS combo builder
+  String ck1v, ck2v, ckav;
+  for (int i = 0; i < MAX_COMBOS; i++) {
+    if (i) { ck1v += ','; ck2v += ','; ckav += ','; }
+    ck1v += String((uint8_t)combos[i].key1);
+    ck2v += String((uint8_t)combos[i].key2);
+    ckav += String(combos[i].action);
+  }
+  html.replace("COMBOK1VALS", ck1v);
+  html.replace("COMBOK2VALS", ck2v);
+  html.replace("COMBOAVALS",  ckav);
   // Escape BLE name for safe use in an HTML attribute value
   String bn;
   for (int i = 0; ble_name[i]; i++) {
@@ -628,6 +760,24 @@ void handle_save() {
     if (server.hasArg("l" + si)) long_keys[i]  = (uint8_t)server.arg("l" + si).toInt();
   }
   save_keymap();
+
+  // Parse combo parameters (only present when the combos form is submitted)
+  bool any_combo_arg = false;
+  for (int i = 0; i < MAX_COMBOS; i++) {
+    String ci = String(i);
+    if (server.hasArg("ck" + ci + "k1") || server.hasArg("ck" + ci + "k2") || server.hasArg("ck" + ci + "a")) {
+      any_combo_arg = true;
+      uint8_t k1 = (uint8_t)server.arg("ck" + ci + "k1").toInt();
+      uint8_t k2 = (uint8_t)server.arg("ck" + ci + "k2").toInt();
+      uint8_t a  = (uint8_t)server.arg("ck" + ci + "a").toInt();
+      // Reject button 4 (char '4' = 52) and mismatched pairs (same button twice)
+      if (k1 == 52 || k2 == 52 || (k1 != 0 && k1 == k2)) { k1 = 0; k2 = 0; a = 0; }
+      combos[i].key1   = (char)k1;
+      combos[i].key2   = (char)k2;
+      combos[i].action = a;
+    }
+  }
+  if (any_combo_arg) save_combos();
 
   if (server.hasArg("blename")) {
     String newName = server.arg("blename");
@@ -753,7 +903,7 @@ void start_config_ap() {
   // so it is safe to poll here until the keypad goes idle.
   unsigned long drain_start = millis();
   while (keypad.getState() != IDLE && millis() - drain_start < 3000) {
-    keypad.getKey();
+    keypad.getKeys();
     delay(10);
   }
   if (DEBUG) Serial.println("Button released, entering config loop");
@@ -765,7 +915,7 @@ void start_config_ap() {
 
   while (!exit_config_mode) {
     server.handleClient();
-    keypad.getKey(); // keeps the keypad ISR happy; tap of '4' sets exit_config_mode
+    process_keypad(); // tap of '4' sets exit_config_mode via keypad_handler
 
     // Drive the LED blink pattern for APP_CONFIG
     if ((millis() - (unsigned long)led_state_time) > (unsigned long)led_delays[APP_CONFIG][led_state]) {
@@ -818,7 +968,7 @@ void send_repeating_key(uint8_t key) {
   while (keypad.getState() == HOLD) {
     bleKeyboard.write(key);
     delay(long_press_repeat_interval);
-    keypad.getKey();
+    keypad.getKeys();
   }
   digitalWrite(LED_PIN, LOW);
 }
@@ -875,26 +1025,30 @@ bool wait_for_key_hold(int key_hold_time) {
   int start = millis();
   while (keypad.getState() == HOLD && millis() < (unsigned long)(start + key_hold_time)) {
     delay(20);
-    keypad.getKey();
+    keypad.getKeys();
   }
   return (keypad.getState() == HOLD);
 }
 
 // ---------------------------------------------------------------------------
-// Keypad event handler
+// Keypad event handler — called manually by process_keypad() for each key.
+// Uses key_was_held[] to distinguish short press (PRESSED→RELEASED) from
+// long press (PRESSED→HOLD→RELEASED).
 // ---------------------------------------------------------------------------
-void keypad_handler(KeypadEvent key) {
-  if (DEBUG) Serial.println("keypad_handler");
+void keypad_handler(KeypadEvent key, KeyState state) {
+  if (DEBUG) { Serial.print("key "); Serial.print(key); Serial.print(" state "); Serial.println(state); }
 
-  switch (keypad.getState()) {
+  int idx = btn_index(key);
+
+  switch (state) {
 
     case PRESSED:
-      last_keypad_state = keypad.getState();
+      if (idx >= 0) key_was_held[idx] = false;
       if (is_key_instant(key) && app_status != APP_CONFIG) send_short_press(key);
       break;
 
     case HOLD:
-      last_keypad_state = keypad.getState();
+      if (idx >= 0) key_was_held[idx] = true;
       send_long_press(key);
       break;
 
@@ -902,16 +1056,15 @@ void keypad_handler(KeypadEvent key) {
       // Tap of '4' during config mode exits AP mode without saving
       if (app_status == APP_CONFIG && key == '4') {
         exit_config_mode = true;
-        last_keypad_state = keypad.getState();
         break;
       }
 
-      if (last_keypad_state == PRESSED) {
+      if (idx >= 0 && !key_was_held[idx]) {
         if (!(is_key_instant(key) && app_status != APP_CONFIG)) {
           send_short_press(key);
         }
       }
-      last_keypad_state = keypad.getState();
+      if (idx >= 0) key_was_held[idx] = false;
 
       if (app_status == APP_CONNECTED || app_status == APP_CONNECTED_BLINK) {
         digitalWrite(LED_PIN, LOW);
@@ -922,8 +1075,6 @@ void keypad_handler(KeypadEvent key) {
       break;
 
     case IDLE:
-      last_keypad_state = keypad.getState();
-
       if (app_status == APP_CONNECTED || app_status == APP_CONNECTED_BLINK) {
         digitalWrite(LED_PIN, LOW);
         led_state      = 0;
@@ -931,6 +1082,103 @@ void keypad_handler(KeypadEvent key) {
       }
       bleKeyboard.releaseAll();
       break;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// process_keypad — unified keypad polling with 2-button combo detection.
+//
+// Replaces the Keypad event-listener approach so that combo detection can
+// suppress individual key actions for the combo's constituent buttons.
+//
+// A combo fires once when BOTH of its buttons first appear as PRESSED in the
+// same debounce scan window (≈50 ms).  While combo_active is set, all key
+// events for the constituent buttons are suppressed until both are released.
+// ---------------------------------------------------------------------------
+void process_keypad() {
+  if (!keypad.getKeys()) return;
+
+  // Collect buttons currently active (PRESSED or HELD).
+  char active[LIST_MAX];
+  int  active_count = 0;
+  for (int i = 0; i < LIST_MAX; i++) {
+    if (keypad.key[i].kchar != NO_KEY &&
+        (keypad.key[i].kstate == PRESSED || keypad.key[i].kstate == HOLD)) {
+      active[active_count++] = keypad.key[i].kchar;
+    }
+  }
+
+  // ---- End of a combo hold: wait for all keys to release ---------------
+  if (combo_active) {
+    if (active_count == 0) {
+      // Clear key_was_held only for the two buttons that were in the combo,
+      // leaving state for any other buttons that may have been held independently.
+      if (combo_active_idx >= 0) {
+        int idx1 = btn_index(combos[combo_active_idx].key1);
+        int idx2 = btn_index(combos[combo_active_idx].key2);
+        if (idx1 >= 0) key_was_held[idx1] = false;
+        if (idx2 >= 0) key_was_held[idx2] = false;
+      }
+      combo_active     = false;
+      combo_active_idx = -1;
+      bleKeyboard.releaseAll();
+      if (app_status == APP_CONNECTED || app_status == APP_CONNECTED_BLINK) {
+        digitalWrite(LED_PIN, LOW);
+        led_state      = 0;
+        led_state_time = millis();
+      }
+    }
+    return;
+  }
+
+  // ---- Detect a new combo (both buttons must be newly PRESSED this scan) --
+  for (int c = 0; c < MAX_COMBOS; c++) {
+    if (!combos[c].action || !combos[c].key1 || !combos[c].key2) continue;
+
+    bool k1_active = false, k2_active = false;
+    bool k1_new    = false, k2_new    = false;
+
+    for (int i = 0; i < LIST_MAX; i++) {
+      char kc = keypad.key[i].kchar;
+      if (kc == combos[c].key1) {
+        if (keypad.key[i].kstate == PRESSED || keypad.key[i].kstate == HOLD) k1_active = true;
+        if (keypad.key[i].kstate == PRESSED && keypad.key[i].stateChanged)   k1_new    = true;
+      }
+      if (kc == combos[c].key2) {
+        if (keypad.key[i].kstate == PRESSED || keypad.key[i].kstate == HOLD) k2_active = true;
+        if (keypad.key[i].kstate == PRESSED && keypad.key[i].stateChanged)   k2_new    = true;
+      }
+    }
+
+    // Both buttons must be active and at least one must have just entered PRESSED
+    // this scan cycle.  Requiring stateChanged on at least one key ensures:
+    //   • The action fires exactly once per press (not every scan while held).
+    //   • Simultaneous presses detected in the same 50 ms scan window both work
+    //     (either or both may arrive as "new" in the same call to getKeys()).
+    //   • A button already held from a previous scan (k1_active, k1_new=false)
+    //     will still trigger the combo when the partner key is pressed (k2_new=true),
+    //     giving a small grace window for near-simultaneous but not identical presses.
+    if (k1_active && k2_active && (k1_new || k2_new)) {
+      combo_active     = true;
+      combo_active_idx = c;
+      if (app_status != APP_CONFIG) {
+        if (DEBUG) {
+          Serial.print("Combo: "); Serial.print(combos[c].key1);
+          Serial.print("+");       Serial.print(combos[c].key2);
+          Serial.print(" -> ");    Serial.println(combos[c].action);
+        }
+        bleKeyboard.write(combos[c].action);
+        flash_led(2, 100, 50);
+      }
+      return;
+    }
+  }
+
+  // ---- Individual key handling -----------------------------------------
+  for (int i = 0; i < LIST_MAX; i++) {
+    if (keypad.key[i].stateChanged && keypad.key[i].kchar != NO_KEY) {
+      keypad_handler(keypad.key[i].kchar, keypad.key[i].kstate);
+    }
   }
 }
 
@@ -945,7 +1193,8 @@ void setup() {
 
   pinMode(LED_PIN, OUTPUT);
 
-  load_keymap(); // Load from NVS (or fall back to defaults)
+  load_keymap();   // Load from NVS (or fall back to defaults)
+  load_combos();   // Load combos from NVS (or leave zeroed = no combos)
   load_ble_name(); // Load BLE device name from NVS (or fall back to "BarButtons")
 
   bleKeyboard.begin();
@@ -960,8 +1209,8 @@ void setup() {
   }
   prefs.end();
 
-  keypad.addEventListener(keypad_handler);
   keypad.setHoldTime(long_press_time);
+  // No addEventListener — keypad events are processed manually in process_keypad().
 
   if (DEBUG) Serial.println("Setup complete.");
 }
@@ -970,7 +1219,7 @@ void setup() {
 // Arduino loop
 // ---------------------------------------------------------------------------
 void loop() {
-  keypad.getKey();
+  process_keypad();
 
   // Track BLE connection state
   if (app_status == APP_BT_DISCONNECTED && bleKeyboard.isConnected()) {

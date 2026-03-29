@@ -128,14 +128,18 @@ public:
   bool isConnected() { return _connected; }
 
   // Tap: press then immediately release
-  void write(uint8_t key) { press(key); delay(10); releaseAll(); }
+  void write(uint8_t key) {
+    if (DEBUG) Serial.printf("[BLE] write: key=0x%02X (%d)\n", key, key);
+    press(key); delay(10); releaseAll();
+  }
 
   // Hold key (accumulates modifiers / keys until releaseAll)
   void press(uint8_t key) {
     uint8_t scan = 0, modBit = 0;
     toHID(key, scan, modBit);
-    if (modBit)       _rep.mod |= modBit;
-    else if (scan)    for (int i = 0; i < 6; i++) if (!_rep.keys[i]) { _rep.keys[i] = scan; break; }
+    if (DEBUG) Serial.printf("[BLE] press: key=0x%02X -> scan=0x%02X mod=0x%02X\n", key, scan, modBit);
+    if (modBit)    _rep.mod |= modBit;
+    if (scan)      for (int i = 0; i < 6; i++) if (!_rep.keys[i]) { _rep.keys[i] = scan; break; }
     send();
   }
 
@@ -172,6 +176,13 @@ private:
   }
 
   void send() {
+    if (DEBUG) {
+      Serial.printf("[BLE] send: connected=%d input=%s | mod=0x%02X keys=[%02X %02X %02X %02X %02X %02X]\n",
+        (int)_connected, _input ? "ok" : "NULL",
+        _rep.mod,
+        _rep.keys[0], _rep.keys[1], _rep.keys[2],
+        _rep.keys[3], _rep.keys[4], _rep.keys[5]);
+    }
     if (_connected && _input) {
       _input->setValue((uint8_t*)&_rep, sizeof(_rep));
       _input->notify();

@@ -33,6 +33,8 @@ const char CONFIG_HTML[] PROGMEM = R"rawliteral(
 body{font-family:sans-serif;max-width:740px;margin:20px auto;padding:0 12px}
 h2{color:#2c2c2c;margin-bottom:4px}
 p.sub{color:#666;font-size:.9em;margin-top:0}
+footer{margin-top:32px;padding-top:12px;border-top:1px solid #ddd;color:#999;font-size:.82em;text-align:center}
+footer a{color:#888}
 table{width:100%;border-collapse:collapse;margin-top:12px}
 th,td{padding:7px 10px;text-align:left;border:1px solid #ddd}
 th{background:#f5f5f5;font-weight:600}
@@ -50,7 +52,7 @@ select{width:100%;box-sizing:border-box;padding:3px}
 </head>
 <body>
 <h2>BarButtons Mod Keymap Config</h2>
-<p class="sub">Firmware vFWVER by Drakarah &mdash; AP configuration mode</p>
+<p class="sub">AP configuration mode</p>
 <form method="POST" action="/save">
 <table>
 <thead>
@@ -152,6 +154,7 @@ for (var i = 0; i < 8; i++) {
   tbody.appendChild(tr);
 }
 </script>
+<footer>BarButtonsMod vFWVER &mdash; by <a href="https://github.com/drake7707/" target="_blank" rel="noopener">Drakarah</a> &mdash; <a href="https://github.com/drake7707/" target="_blank" rel="noopener">github.com/drake7707</a></footer>
 </body>
 </html>
 )rawliteral";

@@ -133,11 +133,7 @@ void on_short_press(char btn) {
 
     if (DEBUG) { Serial.print("Short press: "); Serial.print(btn); Serial.printf(" -> key=0x%02X (%d)\n", shortKey, shortKey); }
     bleManager.write(shortKey);
-
-    // Skip the blocking LED flash during auto-repeat to avoid disrupting the cadence
-    // (auto-repeat buttons have no distinct long-press action: getLongKey == 0)
-    bool isAutoRepeatMode = (idx != 3 && configManager.getLongKey(idx) == 0);
-    if (!isAutoRepeatMode) ledManager.flashLed(1, 150, 0);
+    ledManager.flashLed(1, 150, 0);
   }
 }
 

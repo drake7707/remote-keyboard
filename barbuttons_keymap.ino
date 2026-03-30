@@ -234,10 +234,8 @@ void loop() {
     ledManager.setStatus(APP_BT_DISCONNECTED);
   }
 
-  // Drive LED blink pattern (only when keypad is idle)
-  if (buttonManager.isIdle()) {
-    ledManager.update();
-  }
+  // Drive LED blink pattern and any pending flash animation
+  ledManager.update();
 
   delay(10);
 }

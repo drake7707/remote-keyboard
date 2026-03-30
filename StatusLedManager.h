@@ -26,14 +26,17 @@ public:
     digitalWrite(_pin, LOW);
   }
 
-  // Flash the LED n times (blocking)
-  void flashLed(int times, int length, int delayTime) {
-    for (int i = 0; i < times; i++) {
-      digitalWrite(_pin, HIGH);
-      delay(length);
-      digitalWrite(_pin, LOW);
-      if (i < (times - 1)) delay(delayTime);
-    }
+  // Schedule a non-blocking LED flash animation.
+  // The LED will blink 'times' times, each ON for 'length' ms with 'delayTime' ms
+  // between flashes.  The animation is driven by update() calls in the main loop.
+  void flashLed(int times, unsigned long length, unsigned long delayTime) {
+    _flashActive    = true;
+    _flashRemaining = times;
+    _flashOnTime    = length;
+    _flashOffTime   = delayTime;
+    _flashLedOn     = true;
+    digitalWrite(_pin, HIGH);
+    _flashStateTime = millis();
   }
 
   void setStatus(AppStatus s) { _status = s; }
@@ -46,8 +49,37 @@ public:
     digitalWrite(_pin, LOW);
   }
 
-  // Drive blink pattern — call every loop iteration when keypad is idle
+  // Drive blink pattern and flash animation — call every loop iteration
   void update() {
+    // A pending flash animation takes priority over the status blink pattern
+    if (_flashActive) {
+      unsigned long now = millis();
+      if (_flashLedOn) {
+        if (now - _flashStateTime >= _flashOnTime) {
+          _flashRemaining--;
+          if (_flashRemaining == 0) {
+            // Last flash complete — turn off and return to status blink
+            digitalWrite(_pin, LOW);
+            _flashActive  = false;
+            _ledStateTime = now;  // reset status blink timer
+          } else {
+            // More flashes to go — turn off and wait for off delay
+            digitalWrite(_pin, LOW);
+            _flashLedOn     = false;
+            _flashStateTime = now;
+          }
+        }
+      } else {
+        if (now - _flashStateTime >= _flashOffTime) {
+          // Start next flash
+          digitalWrite(_pin, HIGH);
+          _flashLedOn     = true;
+          _flashStateTime = now;
+        }
+      }
+      return;
+    }
+
     if (_status == APP_CONNECTED_BLINK) {
       if ((millis() - _ledStateTime) > (unsigned long)_keymapIndicatorLedDelays[_ledState]) {
         _ledState = 1 - _ledState;
@@ -74,6 +106,14 @@ private:
   int       _ledState                 = 0;
   unsigned long _ledStateTime         = 0;
   int       _keymapIndicatorCountdown = 0;
+
+  // Non-blocking flash animation state
+  bool          _flashActive    = false;
+  int           _flashRemaining = 0;
+  bool          _flashLedOn     = false;
+  unsigned long _flashOnTime    = 0;
+  unsigned long _flashOffTime   = 0;
+  unsigned long _flashStateTime = 0;
 
   int _ledDelays[4][2] = {
     {  500,  500 },  // APP_BT_DISCONNECTED

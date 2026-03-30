@@ -206,6 +206,8 @@ void setup() {
   // Initialise ButtonManager and apply the active keymap's per-button configuration
   buttonManager.begin();
   applyKeymap();
+  // Flash N times to indicate which keymap is active on boot (same pattern as keymap switching)
+  ledManager.flashLed(configManager.getActiveKeymap(), 150, 100);
 
   buttonManager.setShortPressHandler(on_short_press);
   buttonManager.setLongPressHandler(on_long_press);

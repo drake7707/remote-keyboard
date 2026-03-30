@@ -63,9 +63,9 @@ After switching, the LED flashes **1, 2, or 3 times** to confirm which keymap is
 stateDiagram-v2
     [*] --> BT_Disconnected : power on / boot
 
-    BT_Disconnected : BT Disconnected\n(LED slow blink 500/500 ms)
-    BT_Connected    : BT Connected\n(LED off, brief flash on keypress)
-    Config_Mode     : Config Mode\n(WiFi AP active, LED fast blink 100/3000 ms)
+    BT_Disconnected : BT Disconnected<br>(LED slow blink 500/500 ms)
+    BT_Connected    : BT Connected<br>(LED off, brief flash on keypress)
+    Config_Mode     : Config Mode<br>(WiFi AP active, LED fast blink 100/3000 ms)
 
     BT_Disconnected --> BT_Connected    : host connects via BLE
     BT_Connected    --> BT_Disconnected : host disconnects
@@ -73,7 +73,7 @@ stateDiagram-v2
     BT_Disconnected --> Config_Mode     : Button 4 held ≥ 5 s
     BT_Connected    --> Config_Mode     : Button 4 held ≥ 5 s
 
-    Config_Mode --> BT_Disconnected : tap Button 4 (exit without save)\nor Save & Reboot web action\nor Clear Bonds & Reboot web action\nor Flash Firmware OTA web action
+    Config_Mode --> BT_Disconnected : tap Button 4 (exit without save)<br>or Save & Reboot web action<br>or Clear Bonds & Reboot web action<br>or Flash Firmware OTA web action
 ```
 
 > **Key behaviours by state**
@@ -116,8 +116,8 @@ Any other key code sends that key exactly once on long press.
 
 ### Required libraries
 
-- [Keypad](https://github.com/Chris--A/Keypad)
-- [NimBLE-Arduino](https://github.com/h2zero/NimBLE-Arduino)
+- [Keypad (v3.1.1)](https://github.com/Chris--A/Keypad)
+- [NimBLE-Arduino (v2.4.0)](https://github.com/h2zero/NimBLE-Arduino)
 - `WiFi`, `WebServer`, `Update`, `Preferences` — bundled with the Arduino ESP32 core
 
 ### Build & flash

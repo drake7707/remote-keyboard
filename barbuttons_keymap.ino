@@ -133,11 +133,7 @@ void on_short_press(char btn) {
 
     if (DEBUG) { Serial.print("Short press: "); Serial.print(btn); Serial.printf(" -> key=0x%02X (%d)\n", shortKey, shortKey); }
     bleManager.write(shortKey);
-
-    // Skip the blocking LED flash during auto-repeat to avoid disrupting the cadence
-    // (auto-repeat buttons have no distinct long-press action: getLongKey == 0)
-    bool isAutoRepeatMode = (idx != 3 && configManager.getLongKey(idx) == 0);
-    if (!isAutoRepeatMode) ledManager.flashLed(1, 150, 0);
+    ledManager.flashLed(1, 150, 0);
   }
 }
 
@@ -210,6 +206,8 @@ void setup() {
   // Initialise ButtonManager and apply the active keymap's per-button configuration
   buttonManager.begin();
   applyKeymap();
+  // Flash N times to indicate which keymap is active on boot (same pattern as keymap switching)
+  ledManager.flashLed(configManager.getActiveKeymap(), 150, 100);
 
   buttonManager.setShortPressHandler(on_short_press);
   buttonManager.setLongPressHandler(on_long_press);
@@ -234,10 +232,8 @@ void loop() {
     ledManager.setStatus(APP_BT_DISCONNECTED);
   }
 
-  // Drive LED blink pattern (only when keypad is idle)
-  if (buttonManager.isIdle()) {
-    ledManager.update();
-  }
+  // Drive LED blink pattern and any pending flash animation
+  ledManager.update();
 
   delay(10);
 }

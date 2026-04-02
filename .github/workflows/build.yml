@@ -38,7 +38,7 @@ jobs:
           arduino-cli compile \
             --fqbn esp32:esp32:esp32c3:PartitionScheme=min_spiffs,FlashSize=4M \
             --output-dir build \
-            .
+            barbuttons_keymap.ino
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

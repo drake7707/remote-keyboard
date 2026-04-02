@@ -35,10 +35,12 @@ jobs:
 
       - name: Compile sketch
         run: |
+          mkdir barbuttons_keymap
+          cp barbuttons_keymap.ino *.h barbuttons_keymap/
           arduino-cli compile \
             --fqbn esp32:esp32:esp32c3:PartitionScheme=min_spiffs,FlashSize=4M \
             --output-dir build \
-            barbuttons_keymap.ino
+            barbuttons_keymap/
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4

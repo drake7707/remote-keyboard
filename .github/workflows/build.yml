@@ -2,7 +2,8 @@ name: Build
 
 on:
   push:
-  pull_request:
+    branches:
+      - main
 
 jobs:
   build:
@@ -55,7 +56,6 @@ jobs:
           path: build/
 
       - name: Create release
-        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

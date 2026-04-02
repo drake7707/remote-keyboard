@@ -1,0 +1,49 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install arduino-cli
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+          echo "$HOME/bin" >> $GITHUB_PATH
+
+      - name: Configure arduino-cli
+        run: |
+          arduino-cli config init
+          arduino-cli config add board_manager.additional_urls \
+            https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+
+      - name: Install ESP32 platform
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install esp32:esp32
+
+      - name: Install libraries
+        run: |
+          arduino-cli lib install "Keypad@3.1.1"
+          arduino-cli lib install "NimBLE-Arduino@2.4.0"
+
+      - name: Set DEBUG=0 for production build
+        run: sed -i 's/const int DEBUG = 1;/const int DEBUG = 0;/' barbuttons_keymap.ino
+
+      - name: Compile sketch
+        run: |
+          arduino-cli compile \
+            --fqbn esp32:esp32:esp32c3:PartitionScheme=min_spiffs,FlashSize=4M \
+            --output-dir build \
+            .
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: build/

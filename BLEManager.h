@@ -148,7 +148,7 @@ public:
   // Tap: press then immediately release
   void write(uint8_t key) {
     if (DEBUG) Serial.printf("[BLE] write: key=0x%02X (%d)\n", key, key);
-    if (isMediaKey(key)) { writeMedia(key); return; }
+    if (isMediaKey(key)) { pressMedia(key); delay(10); releaseAllMedia(); return; }
     press(key); delay(10); releaseAll();
   }
 
@@ -164,6 +164,16 @@ public:
 
   void releaseAll() { memset(&_rep, 0, sizeof(_rep)); send(); }
 
+  // Hold a consumer control key until releaseAllMedia
+  void pressMedia(uint8_t key) {
+    uint16_t usage = mediaKeyToUsage(key);
+    if (DEBUG) Serial.printf("[BLE] pressMedia: key=0x%02X usage=0x%04X\n", key, usage);
+    _repCC = usage;
+    sendCC();
+  }
+
+  void releaseAllMedia() { _repCC = 0; sendCC(); }
+
   // Delete all stored BLE bonds from NVS
   static void clearAllBonds() { NimBLEDevice::deleteAllBonds(); }
 
@@ -176,6 +186,7 @@ private:
   NimBLECharacteristic* _input     = nullptr;  // Report ID 1 — keyboard
   NimBLECharacteristic* _inputCC   = nullptr;  // Report ID 2 — consumer control
   KbReport              _rep       = {};
+  uint16_t              _repCC     = 0;
 
   void onConnect(NimBLEServer*, NimBLEConnInfo&) override {
     _connected = true;
@@ -225,18 +236,14 @@ private:
     }
   }
 
-  // Send a consumer control key press + release via Report ID 2
-  void writeMedia(uint8_t key) {
-    uint16_t usage = mediaKeyToUsage(key);
-    if (DEBUG) Serial.printf("[BLE] writeMedia: key=0x%02X usage=0x%04X\n", key, usage);
-    if (!usage || !_connected || !_inputCC) return;
-    uint8_t buf[2] = { (uint8_t)(usage & 0xFF), (uint8_t)(usage >> 8) };
-    _inputCC->setValue(buf, 2);
-    _inputCC->notify();
-    delay(10);
-    memset(buf, 0, sizeof(buf));
-    _inputCC->setValue(buf, 2);
-    _inputCC->notify();
+  void sendCC() {
+    if (DEBUG) Serial.printf("[BLE] sendCC: connected=%d inputCC=%s | usage=0x%04X\n",
+      (int)_connected, _inputCC ? "ok" : "NULL", _repCC);
+    if (_connected && _inputCC) {
+      uint8_t buf[2] = { (uint8_t)(_repCC & 0xFF), (uint8_t)(_repCC >> 8) };
+      _inputCC->setValue(buf, 2);
+      _inputCC->notify();
+    }
   }
 
   // Convert Arduino-Keyboard / BleKeyboard code → HID scan code + modifier bit

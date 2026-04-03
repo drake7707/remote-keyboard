@@ -145,14 +145,15 @@ public:
 
   bool isConnected() { return _connected; }
 
-  // Tap: press then immediately release
+  // Send a single key tap (press + immediate release).
+  // Accepts any KEY_* constant, including media keys (KEY_MEDIA_PLAY_PAUSE, etc.).
   void write(uint8_t key) {
     if (DEBUG) Serial.printf("[BLE] write: key=0x%02X (%d)\n", key, key);
     if (isMediaKey(key)) { pressMedia(key); delay(10); releaseAllMedia(); return; }
     press(key); delay(10); releaseAll();
   }
 
-  // Hold key (accumulates modifiers / keys until releaseAll)
+  // Hold a regular keyboard key down (accumulates modifiers / keys until releaseAll).
   void press(uint8_t key) {
     uint8_t scan = 0, modBit = 0;
     toHID(key, scan, modBit);
@@ -162,9 +163,11 @@ public:
     send();
   }
 
+  // Release all held keyboard keys.
   void releaseAll() { memset(&_rep, 0, sizeof(_rep)); send(); }
 
-  // Hold a consumer control key until releaseAllMedia
+  // Hold a media key down until releaseAllMedia() is called.
+  // Accepts KEY_MEDIA_* constants (play/pause, stop, next, prev, vol up/down, mute).
   void pressMedia(uint8_t key) {
     uint16_t usage = mediaKeyToUsage(key);
     if (DEBUG) Serial.printf("[BLE] pressMedia: key=0x%02X usage=0x%04X\n", key, usage);
@@ -172,6 +175,7 @@ public:
     sendCC();
   }
 
+  // Release all held media keys.
   void releaseAllMedia() { _repCC = 0; sendCC(); }
 
   // Delete all stored BLE bonds from NVS
@@ -183,10 +187,10 @@ private:
   bool                  _connected = false;
   NimBLEServer*         _srv       = nullptr;
   NimBLEHIDDevice*      _hid       = nullptr;
-  NimBLECharacteristic* _input     = nullptr;  // Report ID 1 — keyboard
-  NimBLECharacteristic* _inputCC   = nullptr;  // Report ID 2 — consumer control
-  KbReport              _rep       = {};
-  uint16_t              _repCC     = 0;
+  NimBLECharacteristic* _input     = nullptr;  // HID Report ID 1 — keyboard input
+  NimBLECharacteristic* _inputCC   = nullptr;  // HID Report ID 2 — Consumer Control (media keys)
+  KbReport              _rep       = {};        // Current keyboard report state
+  uint16_t              _repCC     = 0;         // Current Consumer Control report state (USB usage code)
 
   void onConnect(NimBLEServer*, NimBLEConnInfo&) override {
     _connected = true;
@@ -206,6 +210,7 @@ private:
                              NimBLEDevice::getNumBonds());
   }
 
+  // Transmits the current keyboard report over BLE.
   void send() {
     if (DEBUG) {
       Serial.printf("[BLE] send: connected=%d input=%s | mod=0x%02X keys=[%02X %02X %02X %02X %02X %02X]\n",
@@ -220,9 +225,11 @@ private:
     }
   }
 
+  // Returns true if key is a media key (KEY_MEDIA_*).
   static bool isMediaKey(uint8_t k) { return mediaKeyToUsage(k) != 0; }
 
-  // Map a media key code to its 16-bit USB Consumer Control usage code
+  // Maps a KEY_MEDIA_* constant to its USB Consumer Control HID usage code.
+  // Returns 0 for non-media keys.
   static uint16_t mediaKeyToUsage(uint8_t k) {
     switch (k) {
       case KEY_MEDIA_PLAY_PAUSE: return 0x00CD;  // Play/Pause
@@ -236,6 +243,7 @@ private:
     }
   }
 
+  // Transmits the current Consumer Control (media key) report over BLE.
   void sendCC() {
     if (DEBUG) Serial.printf("[BLE] sendCC: connected=%d inputCC=%s | usage=0x%04X\n",
       (int)_connected, _inputCC ? "ok" : "NULL", _repCC);

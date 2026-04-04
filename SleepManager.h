@@ -51,11 +51,11 @@ public:
     // row pin LOW and wake the CPU immediately.
     bool gpioWakeEnabled = _buttons.isIdle();
     if (gpioWakeEnabled) {
-      for (int i = 0; i < 3; i++) {
+      for (int i = 0; i < (int)(sizeof(KEYPAD_COL_PINS) / sizeof(KEYPAD_COL_PINS[0])); i++) {
         gpio_set_direction((gpio_num_t)KEYPAD_COL_PINS[i], GPIO_MODE_OUTPUT);
         gpio_set_level((gpio_num_t)KEYPAD_COL_PINS[i], 0);
       }
-      for (int i = 0; i < 3; i++) {
+      for (int i = 0; i < (int)(sizeof(KEYPAD_ROW_PINS) / sizeof(KEYPAD_ROW_PINS[0])); i++) {
         gpio_wakeup_enable((gpio_num_t)KEYPAD_ROW_PINS[i], GPIO_INTR_LOW_LEVEL);
       }
       esp_sleep_enable_gpio_wakeup();
@@ -67,7 +67,7 @@ public:
     // Disable wakeup sources so they don't interfere with the next sleep cycle.
     esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
     if (gpioWakeEnabled) {
-      for (int i = 0; i < 3; i++) {
+      for (int i = 0; i < (int)(sizeof(KEYPAD_ROW_PINS) / sizeof(KEYPAD_ROW_PINS[0])); i++) {
         gpio_wakeup_disable((gpio_num_t)KEYPAD_ROW_PINS[i]);
       }
       esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_GPIO);
@@ -77,11 +77,11 @@ public:
       // no key is pressed); column pins start as inputs and are driven LOW one
       // at a time by the library during each scan cycle.  Restoring here makes
       // keypad operation independent of Keypad's internal initialisation logic.
-      for (int i = 0; i < 3; i++) {
+      for (int i = 0; i < (int)(sizeof(KEYPAD_ROW_PINS) / sizeof(KEYPAD_ROW_PINS[0])); i++) {
         gpio_pullup_en((gpio_num_t)KEYPAD_ROW_PINS[i]);
         gpio_set_direction((gpio_num_t)KEYPAD_ROW_PINS[i], GPIO_MODE_INPUT);
       }
-      for (int i = 0; i < 3; i++) {
+      for (int i = 0; i < (int)(sizeof(KEYPAD_COL_PINS) / sizeof(KEYPAD_COL_PINS[0])); i++) {
         gpio_set_direction((gpio_num_t)KEYPAD_COL_PINS[i], GPIO_MODE_INPUT);
       }
     }

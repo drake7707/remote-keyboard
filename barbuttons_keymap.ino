@@ -43,8 +43,7 @@ const char FIRMWARE_VERSION[] = "1.1.0";
 #include "BLEManager.h"
 #include "ConfigManager.h"
 #include "ButtonManager.h"
-#include "driver/gpio.h"
-#include "esp_sleep.h"
+#include "SleepManager.h"
 
 // ---------------------------------------------------------------------------
 // Global manager instances
@@ -53,6 +52,7 @@ StatusLedManager ledManager;
 BLEManager       bleManager("JaxeADV", 100);
 ConfigManager    configManager;
 ButtonManager    buttonManager;
+SleepManager     sleepManager(ledManager, buttonManager);
 
 // Apply the currently active keymap to ButtonManager.
 // Call once in setup() and again whenever the active keymap changes.
@@ -180,57 +180,6 @@ void on_combo(char held, char pressed) {
 }
 
 // ---------------------------------------------------------------------------
-// Light sleep — reduces power consumption during normal operation.
-//
-// When no buttons are held the column pins are all driven LOW so that any
-// button press pulls a row pin LOW and immediately wakes the CPU via GPIO
-// wakeup.  A timer wakeup is always armed so the LED blink pattern and BLE
-// state checks are serviced on time even when no key is pressed.
-// Not called during config mode because the WiFi AP must remain responsive.
-// ---------------------------------------------------------------------------
-void doLightSleep() {
-  unsigned long ledMs = ledManager.msUntilNextUpdate();
-  if (ledMs == 0) {
-    // LED transition is overdue — yield briefly so the next loop iteration
-    // can call ledManager.update() without busy-spinning at full speed.
-    delay(1);
-    return;
-  }
-
-  // Cap sleep time so BLE/system events are still serviced regularly.
-  const unsigned long MAX_SLEEP_MS = 50UL;
-  unsigned long sleepMs = (ledMs > MAX_SLEEP_MS) ? MAX_SLEEP_MS : ledMs;
-
-  // When no button is currently held, drive all column pins LOW and enable
-  // GPIO-level wakeup on the row pins.  Any button press will then pull a
-  // row pin LOW and wake the CPU immediately.
-  // The Keypad library reconfigures these pins on the next getKey() call.
-  bool gpioWakeEnabled = buttonManager.isIdle();
-  if (gpioWakeEnabled) {
-    for (int i = 0; i < 3; i++) {
-      gpio_set_direction((gpio_num_t)KEYPAD_COL_PINS[i], GPIO_MODE_OUTPUT);
-      gpio_set_level((gpio_num_t)KEYPAD_COL_PINS[i], 0);
-    }
-    for (int i = 0; i < 3; i++) {
-      gpio_wakeup_enable((gpio_num_t)KEYPAD_ROW_PINS[i], GPIO_INTR_LOW_LEVEL);
-    }
-    esp_sleep_enable_gpio_wakeup();
-  }
-
-  esp_sleep_enable_timer_wakeup((uint64_t)sleepMs * 1000ULL);
-  esp_light_sleep_start();
-
-  // Disable wakeup sources so they don't interfere with the next sleep cycle.
-  esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
-  if (gpioWakeEnabled) {
-    for (int i = 0; i < 3; i++) {
-      gpio_wakeup_disable((gpio_num_t)KEYPAD_ROW_PINS[i]);
-    }
-    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_GPIO);
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Arduino setup
 // ---------------------------------------------------------------------------
 void setup() {
@@ -291,6 +240,6 @@ void loop() {
   if (ledManager.getStatus() == APP_CONFIG) {
     delay(10);
   } else {
-    doLightSleep();
+    sleepManager.sleep();
   }
 }

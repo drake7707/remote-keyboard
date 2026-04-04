@@ -16,7 +16,9 @@
 // Two wakeup sources are armed before each sleep:
 //   • GPIO  — when all buttons are idle the column pins are driven LOW so
 //             any keypress pulls a row pin LOW and wakes the CPU immediately.
-//             The Keypad library reconfigures the pins on the next getKey().
+//             After waking, the pins are explicitly restored to INPUT_PULLUP
+//             (rows) and INPUT (columns) so the Keypad library always starts
+//             from a known-good state, independent of its internal behaviour.
 //   • Timer — capped at min(msUntilNextLedUpdate, MAX_SLEEP_MS) so that the
 //             LED blink pattern and BLE state checks are serviced on time
 //             even when no key is pressed.
@@ -69,6 +71,19 @@ public:
         gpio_wakeup_disable((gpio_num_t)KEYPAD_ROW_PINS[i]);
       }
       esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_GPIO);
+
+      // Restore pins to the state expected by the Keypad library before the
+      // next scan.  Row pins are read as inputs (pull-up keeps them HIGH when
+      // no key is pressed); column pins start as inputs and are driven LOW one
+      // at a time by the library during each scan cycle.  Restoring here makes
+      // keypad operation independent of Keypad's internal initialisation logic.
+      for (int i = 0; i < 3; i++) {
+        gpio_pullup_en((gpio_num_t)KEYPAD_ROW_PINS[i]);
+        gpio_set_direction((gpio_num_t)KEYPAD_ROW_PINS[i], GPIO_MODE_INPUT);
+      }
+      for (int i = 0; i < 3; i++) {
+        gpio_set_direction((gpio_num_t)KEYPAD_COL_PINS[i], GPIO_MODE_INPUT);
+      }
     }
   }
 

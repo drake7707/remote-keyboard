@@ -151,7 +151,7 @@ public:
   // Send a single key tap (press + immediate release).
   // Accepts any KEY_* constant, including media keys (KEY_MEDIA_PLAY_PAUSE, etc.).
   void write(uint8_t key) {
-    if (DEBUG) Serial.printf("[BLE] write: key=0x%02X (%d)\n", key, key);
+    if (DEBUG) printf("[BLE] write: key=0x%02X (%d)\n", key, key);
     if (isMediaKey(key)) { pressMedia(key); vTaskDelay(pdMS_TO_TICKS(10)); releaseAllMedia(); return; }
     press(key); vTaskDelay(pdMS_TO_TICKS(10)); releaseAll();
   }

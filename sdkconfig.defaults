@@ -10,3 +10,7 @@ CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
 # Allow the HTTP server to receive large OTA firmware binaries.
 CONFIG_HTTPD_MAX_REQ_HDR_LEN=1024
 CONFIG_HTTPD_MAX_URI_LEN=512
+
+# Enable Bluetooth and the NimBLE host stack (required by esp-nimble-cpp).
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y

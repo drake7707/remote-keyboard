@@ -227,7 +227,7 @@ extern "C" void app_main() {
   // in sdkconfig.defaults (already set).
   esp_pm_config_t pm_config = {
     .max_freq_mhz      = 160,
-    .min_freq_mhz      = 10,
+    .min_freq_mhz      = 40,   // lowest valid ESP32-C3 frequency that keeps all peripherals stable
     .light_sleep_enable = true,
   };
   esp_err_t pm_err = esp_pm_configure(&pm_config);

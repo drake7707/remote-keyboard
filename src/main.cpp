@@ -16,14 +16,11 @@
      5. Firmware: choose a .bin file and press "Flash Firmware".
      6. To exit config mode without changes, tap Button 4 on the device.
 
-   IMPORTANT — PARTITION SCHEME:
-     In Arduino IDE set Tools > Partition Scheme to:
-     "Minimal SPIFFS (1.9MB APP with OTA/190KB SPIFFS)"
-     This is required because the sketch exceeds the default 1.28 MB app limit.
-
    This work is licensed under the Creative Commons Attribution-NonCommercial 4.0
    International License. http://creativecommons.org/licenses/by-nc/4.0/
 */
+
+#include <Arduino.h>
 
 // ---------------------------------------------------------------------------
 // Build flags

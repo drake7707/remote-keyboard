@@ -1,0 +1,5 @@
+# Enable the ESP-IDF power-management driver and FreeRTOS tickless idle.
+# These are required for esp_pm_configure() to accept light_sleep_enable=true
+# without printing a "light sleep is not allowed" warning.
+CONFIG_PM_ENABLE=y
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=y

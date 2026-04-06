@@ -222,7 +222,8 @@ extern "C" void app_main() {
     if (DEBUG) printf("BLE bonds cleared on request.\n");
   }
 
-  buttonManager.setRowPins(getKeypadRowPins(configManager.isBatteryEnabled()));
+  buttonManager.setPinConfiguration(getKeypadRowPins(configManager.isBatteryEnabled()),
+                                    getKeypadColPins(configManager.isBatteryEnabled()));
   buttonManager.begin();
   applyKeymap();
   // Flash N times to indicate which keymap is active on boot

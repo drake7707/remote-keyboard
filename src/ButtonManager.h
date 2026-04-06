@@ -43,10 +43,12 @@ public:
     memcpy(_colPins, KEYPAD_COL_PINS, sizeof(_colPins));
   }
 
-  // Override the row pins before begin() to select the battery / no-battery
-  // pin layout.  See getKeypadRowPins() in HardwareConfig.h.
-  void setRowPins(const uint8_t* pins) {
-    memcpy(_rowPins, pins, sizeof(_rowPins));
+  // Apply the row and column pin layout before begin().
+  // Use getKeypadRowPins() / getKeypadColPins() from HardwareConfig.h to
+  // select the correct configuration for the battery / no-battery mode.
+  void setPinConfiguration(const uint8_t* rowPins, const uint8_t* colPins) {
+    memcpy(_rowPins, rowPins, sizeof(_rowPins));
+    memcpy(_colPins, colPins, sizeof(_colPins));
   }
 
   void begin() {

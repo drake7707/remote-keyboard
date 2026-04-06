@@ -21,6 +21,7 @@
 */
 
 #include <Arduino.h>
+#include <esp_pm.h>
 
 // ---------------------------------------------------------------------------
 // Build flags
@@ -209,6 +210,20 @@ void setup() {
   buttonManager.setShortPressHandler(on_short_press);
   buttonManager.setLongPressHandler(on_long_press);
   buttonManager.setComboHandler(on_combo);
+
+  // Enable automatic light sleep when the CPU is idle.
+  // Requires CONFIG_PM_ENABLE=y and CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
+  // in sdkconfig.defaults (already set).
+  esp_pm_config_t pm_config = {
+    .max_freq_mhz = 160,
+    .min_freq_mhz = 10,
+    .light_sleep_enable = true,
+  };
+  esp_err_t pm_err = esp_pm_configure(&pm_config);
+  if (DEBUG) {
+    if (pm_err == ESP_OK) Serial.println("Light sleep enabled.");
+    else Serial.printf("esp_pm_configure failed: %s\n", esp_err_to_name(pm_err));
+  }
 
   if (DEBUG) Serial.println("Setup complete.");
 }

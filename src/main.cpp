@@ -22,6 +22,7 @@
 
 #include <Arduino.h>
 #include <esp_pm.h>
+#include <esp32c3/pm.h>
 
 // ---------------------------------------------------------------------------
 // Build flags
@@ -214,7 +215,7 @@ void setup() {
   // Enable automatic light sleep when the CPU is idle.
   // Requires CONFIG_PM_ENABLE=y and CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
   // in sdkconfig.defaults (already set).
-  esp_pm_config_t pm_config = {
+  esp_pm_config_esp32c3_t pm_config = {
     .max_freq_mhz = 160,
     .min_freq_mhz = 10,
     .light_sleep_enable = true,

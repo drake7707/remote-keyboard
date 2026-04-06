@@ -1,36 +1,198 @@
 #pragma once
 
-#include <Arduino.h>
-#include <Keypad.h>
+#include <cstdio>
+#include <cstring>
+#include <driver/gpio.h>
+#include <esp_timer.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include "HardwareConfig.h"
 
 extern const int DEBUG;
 
 // ---------------------------------------------------------------------------
-// ButtonManager — manages the physical keypad hardware and all button timing.
+// Inline Keypad — replaces Chris--A/Keypad library.
+// Identical state-machine logic; GPIO calls use ESP-IDF driver directly.
+// ---------------------------------------------------------------------------
+
+typedef enum { IDLE, PRESSED, HOLD, RELEASED } KeyState;
+const char NO_KEY = '\0';
+
+#define LIST_MAX 10
+#define makeKeymap(x) ((char*)(x))
+
+struct Key {
+  char     kchar        = NO_KEY;
+  int      kcode        = -1;
+  KeyState kstate       = IDLE;
+  bool     stateChanged = false;
+};
+
+class Keypad {
+public:
+  uint32_t bitMap[10] = {};
+  Key      key[LIST_MAX];
+  uint32_t holdTimer  = 0;
+
+  Keypad(char* userKeymap, uint8_t* row, uint8_t* col, uint8_t numRows, uint8_t numCols)
+    : _keymap(userKeymap), _rowPins(row), _colPins(col),
+      _rows(numRows), _cols(numCols),
+      _debounceTime(10), _holdTime(500), _startTime(0) {}
+
+  void setHoldTime(uint32_t ms) { _holdTime = ms; }
+
+  // Scan the matrix and update key[] state; returns true if any state changed.
+  bool getKeys() {
+    uint32_t now = _ms();
+    if (now - _startTime <= _debounceTime) return false;
+    _scanKeys();
+    bool activity = _updateList();
+    _startTime = _ms();
+    return activity;
+  }
+
+private:
+  char*    _keymap;
+  uint8_t* _rowPins;
+  uint8_t* _colPins;
+  uint8_t  _rows, _cols;
+  uint32_t _debounceTime, _holdTime, _startTime;
+
+  static uint32_t _ms() { return (uint32_t)(esp_timer_get_time() / 1000LL); }
+
+  static void _cfgInputPullup(uint8_t pin) {
+    gpio_config_t io = {};
+    io.pin_bit_mask = 1ULL << pin;
+    io.mode         = GPIO_MODE_INPUT;
+    io.pull_up_en   = GPIO_PULLUP_ENABLE;
+    io.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    io.intr_type    = GPIO_INTR_DISABLE;
+    gpio_config(&io);
+  }
+  static void _cfgOutput(uint8_t pin) {
+    gpio_config_t io = {};
+    io.pin_bit_mask = 1ULL << pin;
+    io.mode         = GPIO_MODE_OUTPUT;
+    io.pull_up_en   = GPIO_PULLUP_DISABLE;
+    io.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    io.intr_type    = GPIO_INTR_DISABLE;
+    gpio_config(&io);
+  }
+  static void _cfgInput(uint8_t pin) {
+    gpio_config_t io = {};
+    io.pin_bit_mask = 1ULL << pin;
+    io.mode         = GPIO_MODE_INPUT;
+    io.pull_up_en   = GPIO_PULLUP_DISABLE;
+    io.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    io.intr_type    = GPIO_INTR_DISABLE;
+    gpio_config(&io);
+  }
+
+  // Drive-low column, read rows; active-low => bit set = key pressed.
+  void _scanKeys() {
+    for (uint8_t r = 0; r < _rows; r++) _cfgInputPullup(_rowPins[r]);
+    for (uint8_t c = 0; c < _cols; c++) {
+      _cfgOutput(_colPins[c]);
+      gpio_set_level((gpio_num_t)_colPins[c], 0);
+      for (uint8_t r = 0; r < _rows; r++) {
+        uint32_t pressed = !gpio_get_level((gpio_num_t)_rowPins[r]);
+        bitMap[r] = (bitMap[r] & ~(1u << c)) | (pressed << c);
+      }
+      gpio_set_level((gpio_num_t)_colPins[c], 1);
+      _cfgInput(_colPins[c]);
+    }
+  }
+
+  bool _updateList() {
+    bool anyActivity = false;
+    // Clear IDLE slots
+    for (uint8_t i = 0; i < LIST_MAX; i++) {
+      if (key[i].kstate == IDLE) {
+        key[i].kchar = NO_KEY; key[i].kcode = -1; key[i].stateChanged = false;
+      }
+    }
+    // Update existing keys and add newly pressed ones
+    for (uint8_t r = 0; r < _rows; r++) {
+      for (uint8_t c = 0; c < _cols; c++) {
+        bool button  = (bitMap[r] >> c) & 1u;
+        char keyChar = _keymap[r * _cols + c];
+        int  keyCode = r * _cols + c;
+        int  idx     = _findByCode(keyCode);
+        if (idx >= 0) {
+          _nextKeyState(idx, button);
+        } else if (button) {
+          for (uint8_t i = 0; i < LIST_MAX; i++) {
+            if (key[i].kchar == NO_KEY) {
+              key[i].kchar  = keyChar;
+              key[i].kcode  = keyCode;
+              key[i].kstate = IDLE;
+              _nextKeyState(i, button);
+              break;
+            }
+          }
+        }
+      }
+    }
+    for (uint8_t i = 0; i < LIST_MAX; i++) if (key[i].stateChanged) anyActivity = true;
+    return anyActivity;
+  }
+
+  int _findByCode(int code) const {
+    for (uint8_t i = 0; i < LIST_MAX; i++) if (key[i].kcode == code) return i;
+    return -1;
+  }
+
+  void _nextKeyState(uint8_t idx, bool button) {
+    key[idx].stateChanged = false;
+    uint32_t now = _ms();
+    switch (key[idx].kstate) {
+      case IDLE:
+        if (button) { _transitionTo(idx, PRESSED); holdTimer = now; }
+        break;
+      case PRESSED:
+        if (now - holdTimer > _holdTime) _transitionTo(idx, HOLD);
+        else if (!button)                _transitionTo(idx, RELEASED);
+        break;
+      case HOLD:
+        if (!button) _transitionTo(idx, RELEASED);
+        break;
+      case RELEASED:
+        _transitionTo(idx, IDLE);
+        break;
+    }
+  }
+
+  void _transitionTo(uint8_t idx, KeyState next) {
+    key[idx].kstate       = next;
+    key[idx].stateChanged = true;
+  }
+};
+
+// ---------------------------------------------------------------------------
+// ButtonManager -- manages the physical keypad hardware and all button timing.
 //
 // Design overview:
-//   • update() must be called every loop iteration.  It scans the matrix and
+//   * update() must be called every loop iteration.  It scans the matrix and
 //     fires high-level callbacks; no raw Keypad state leaks to the caller.
-//   • Per-button behaviour is configured via setButtonRepeating() and
+//   * Per-button behaviour is configured via setButtonRepeating() and
 //     setButtonLongPressTime() after begin() but before the first update().
 //
 // Callback semantics:
-//   onShortPress(btn)       — tap (release before SHORT_PRESS_MAX), OR one call
+//   onShortPress(btn)       -- tap (release before SHORT_PRESS_MAX), OR one call
 //                             on press-down + repeated calls at REPEAT_MS for
 //                             repeating buttons.
-//   onLongPress(btn)        — fired while a non-repeating button is still held,
+//   onLongPress(btn)        -- fired while a non-repeating button is still held,
 //                             once its longPressTime threshold is crossed.
-//   onCombo(held, pressed)  — fired when 'pressed' is pressed while 'held' is
+//   onCombo(held, pressed)  -- fired when 'pressed' is pressed while 'held' is
 //                             already active (even if both appear in the same scan).
 // ---------------------------------------------------------------------------
 
 class ButtonManager {
 public:
   // Timing constants (milliseconds)
-  static const unsigned long SHORT_PRESS_MAX        = 500;   // tap threshold (ms)
-  static const unsigned long REPEAT_MS              = 100;   // interval between repeated short-press calls
-  static const unsigned long LONG_PRESS_CONFIG_TIME = 5000;  // total hold time to trigger config mode (button 4)
+  static const uint32_t SHORT_PRESS_MAX        = 500;
+  static const uint32_t REPEAT_MS              = 100;
+  static const uint32_t LONG_PRESS_CONFIG_TIME = 5000;
 
   ButtonManager()
     : _keypad(makeKeymap(_buttons), _rowPins, _colPins, ROWS, COLS)
@@ -39,7 +201,6 @@ public:
     memcpy(_colPins, KEYPAD_COL_PINS, sizeof(_colPins));
   }
 
-  // Initialise hardware.  Call once in setup() before any update() calls.
   void begin() {
     for (int i = 0; i < MAX_BTNS; i++) {
       _repeating[i]     = false;
@@ -53,13 +214,10 @@ public:
     _keypad.setHoldTime(SHORT_PRESS_MAX);
   }
 
-  // ---- Callback registration -----------------------------------------------
+  void setShortPressHandler(void (*h)(char btn))           { _shortPressHandler = h; }
+  void setLongPressHandler(void (*h)(char btn))            { _longPressHandler  = h; }
+  void setComboHandler(void (*h)(char held, char pressed)) { _comboHandler      = h; }
 
-  void setShortPressHandler(void (*h)(char btn))             { _shortPressHandler = h; }
-  void setLongPressHandler(void (*h)(char btn))              { _longPressHandler  = h; }
-  void setComboHandler(void (*h)(char held, char pressed))   { _comboHandler      = h; }
-
-  // ---- Per-button configuration --------------------------------------------
   // repeating=true  : onShortPress fires immediately on press-down, then repeats
   //                   at REPEAT_MS intervals after SHORT_PRESS_MAX ms of hold.
   // repeating=false : onShortPress fires on release if held < SHORT_PRESS_MAX;
@@ -69,58 +227,37 @@ public:
     if (i >= 0) _repeating[i] = repeating;
   }
 
-  // Override the long-press threshold for a specific button (default: SHORT_PRESS_MAX).
-  void setButtonLongPressTime(char btn, unsigned long ms) {
+  void setButtonLongPressTime(char btn, uint32_t ms) {
     int i = _btnIdx(btn);
     if (i >= 0) _longPressTime[i] = ms;
   }
- 
-  String oldPrint;
+
+  char oldPrint[64] = {};
   void print_keypad_state() {
-    String str;
-    
+    char str[64] = {};
+    size_t pos = 0;
     for (int i = 0; i < LIST_MAX; i++) {
       char     btn = _keypad.key[i].kchar;
       KeyState ks  = _keypad.key[i].kstate;
-    
       if (btn == NO_KEY) continue;
-
       int bi = _btnIdx(btn);
       if (bi < 0) continue;
-
-      str += btn;
-      str += "=";
-      switch(ks) {
-        case PRESSED:
-          str += "P";
-          break;
-        case HOLD:
-          str += "H";
-          break;
-        case RELEASED:
-          str += "R";
-          break;
-        case IDLE:
-          str += "I";
-          break;
+      if (pos < sizeof(str) - 5) {
+        char st = ks == PRESSED ? 'P' : ks == HOLD ? 'H' : ks == RELEASED ? 'R' : 'I';
+        pos += snprintf(str + pos, sizeof(str) - pos, "%c=%c ", btn, st);
       }
-      str += " ";
     }
-    if(str != oldPrint) {
-      Serial.print("BUTTON STATE: ");
-      Serial.println(str);
+    if (strcmp(str, oldPrint) != 0) {
+      printf("BUTTON STATE: %s\n", str);
+      strncpy(oldPrint, str, sizeof(oldPrint) - 1);
     }
-    oldPrint = str;
-  
   }
 
-  // ---- Main update loop ----------------------------------------------------
-  // Call every loop() iteration.  Scans the matrix and fires callbacks.
   void update() {
-    _keypad.getKey();               // scan the matrix; updates _keypad.key[]
-    unsigned long now = millis();
+    _keypad.getKeys();
+    uint32_t now = (uint32_t)(esp_timer_get_time() / 1000LL);
 
-    if(DEBUG) print_keypad_state();
+    if (DEBUG) print_keypad_state();
 
     for (int i = 0; i < LIST_MAX; i++) {
       char     btn = _keypad.key[i].kchar;
@@ -135,8 +272,7 @@ public:
 
         case PRESSED:
           if (!_active[bi]) {
-            if (DEBUG) { Serial.print("[BUTTON] "); Serial.print(btn); Serial.println(" PRESSED");}
-            // New press — initialise per-button tracking
+            if (DEBUG) printf("[BUTTON] %c PRESSED\n", btn);
             _active[bi]     = true;
             _pressStart[bi] = now;
             _lastRepeat[bi] = now;
@@ -144,7 +280,7 @@ public:
             _comboFired[bi] = false;
 
             // Combo detection: another button currently active?
-            // No timing guard — both buttons can appear as PRESSED in the same
+            // No timing guard -- both buttons can appear as PRESSED in the same
             // scan cycle (now - _pressStart[j] == 0), so a threshold would
             // silently discard the combo.  Whichever button was registered first
             // in the key[] array is treated as the "held" button.
@@ -153,12 +289,11 @@ public:
             for (int j = 0; j < MAX_BTNS; j++) {
               if (j == bi || !_active[j]) continue;
               if (_comboHandler) _comboHandler(_btnChar(j), btn);
-              _comboFired[bi] = true;  // suppress short press for the new button
-              _comboFired[j]  = true;  // suppress short press for the held button too
-              break; // one combo at a time
+              _comboFired[bi] = true;
+              _comboFired[j]  = true;
+              break;
             }
 
-            // Repeating buttons fire immediately on press-down
             if (!_comboFired[bi] && _repeating[bi]) {
               if (_shortPressHandler) _shortPressHandler(btn);
             }
@@ -167,18 +302,14 @@ public:
 
         case HOLD:
           if (_active[bi]) {
-            unsigned long held = now - _pressStart[bi];
+            uint32_t held = now - _pressStart[bi];
             if (_repeating[bi]) {
-              // Repeat short-press at REPEAT_MS after the initial SHORT_PRESS_MAX hold
-              if (held >= SHORT_PRESS_MAX &&
-                  (now - _lastRepeat[bi]) >= REPEAT_MS) {
+              if (held >= SHORT_PRESS_MAX && (now - _lastRepeat[bi]) >= REPEAT_MS) {
                 if (_shortPressHandler) _shortPressHandler(btn);
                 _lastRepeat[bi] = now;
               }
             } else {
-              // Fire long-press once when threshold is crossed
-              if (!_longFired[bi] && !_comboFired[bi] &&
-                  held >= _longPressTime[bi]) {
+              if (!_longFired[bi] && !_comboFired[bi] && held >= _longPressTime[bi]) {
                 if (_longPressHandler) _longPressHandler(btn);
                 _longFired[bi] = true;
               }
@@ -188,8 +319,8 @@ public:
 
         case RELEASED:
           if (_active[bi]) {
-            if (DEBUG) { Serial.print("[BUTTON] "); Serial.print(btn); Serial.println(" RELEASED");}
-            unsigned long held = now - _pressStart[bi];
+            if (DEBUG) printf("[BUTTON] %c RELEASED\n", btn);
+            uint32_t held = now - _pressStart[bi];
             _active[bi] = false;
             // Short press fires on release for a genuine tap (< SHORT_PRESS_MAX,
             // not consumed by a long-press or combo)
@@ -202,8 +333,8 @@ public:
 
         case IDLE:
           if (_active[bi]) {
-            // RELEASED state was missed — treat as release now
-            unsigned long held = now - _pressStart[bi];
+            // RELEASED state was missed -- treat as release now
+            uint32_t held = now - _pressStart[bi];
             _active[bi] = false;
             if (!_longFired[bi] && !_comboFired[bi] && !_repeating[bi] &&
                 held < SHORT_PRESS_MAX) {
@@ -215,104 +346,56 @@ public:
     }
   }
 
-  // True when no buttons are currently being tracked as active
   bool isIdle() const {
-    for (int i = 0; i < MAX_BTNS; i++) {
-      if (_active[i]) return false;
-    }
+    for (int i = 0; i < MAX_BTNS; i++) if (_active[i]) return false;
     return true;
   }
 
   // Poll until all buttons are idle without firing any callbacks.
   // Call after entering config mode to consume the triggering button-4 release.
   void drainButton(int timeoutMs) {
-    unsigned long start = millis();
-    while (millis() - start < (unsigned long)timeoutMs) {
-      _keypad.getKey();
+    uint32_t start = (uint32_t)(esp_timer_get_time() / 1000LL);
+    while ((uint32_t)(esp_timer_get_time() / 1000LL) - start < (uint32_t)timeoutMs) {
+      _keypad.getKeys();
       bool anyActive = false;
       for (int i = 0; i < LIST_MAX; i++) {
         KeyState ks = _keypad.key[i].kstate;
         if (ks == PRESSED || ks == HOLD || ks == RELEASED) { anyActive = true; break; }
       }
       if (!anyActive) break;
-      delay(10);
+      vTaskDelay(pdMS_TO_TICKS(10));
     }
-    // Clear all internal tracking state to avoid stale data after the drain
     for (int i = 0; i < MAX_BTNS; i++) _active[i] = false;
   }
 
 private:
-  static const byte ROWS     = 3;
-  static const byte COLS     = 3;
-  static const int  MAX_BTNS = 9; // buttons '1'–'9'
+  static const uint8_t ROWS     = 3;
+  static const uint8_t COLS     = 3;
+  static const int     MAX_BTNS = 9;
 
-  // Physical layout of the 3×3 key matrix.
-  // Each character is the logical button label used throughout the firmware.
-  // The order matches the wiring: _buttons[row][col] = label.
-  char _buttons[ROWS][COLS] = {
+  char    _buttons[ROWS][COLS] = {
     {'1', '5', '4'},
     {'2', '6', '7'},
     {'3', '8', '9'}
   };
 
-  // GPIO pin arrays for the keypad matrix rows and columns.
-  // Populated in the constructor from HardwareConfig constants so that
-  // ButtonManager does not depend directly on the hardware-config header.
-  byte _rowPins[ROWS] = {};
-  byte _colPins[COLS] = {};
+  uint8_t _rowPins[ROWS] = {};
+  uint8_t _colPins[COLS] = {};
 
-  // Underlying Keypad library instance — handles low-level matrix scanning,
-  // debouncing, and PRESSED/HOLD/RELEASED/IDLE state tracking.
   Keypad _keypad;
 
-  // ---- Registered event callbacks (set via setXxxHandler) -----------------
-  // Called by update() when the corresponding event is detected.
-  // All are nullptr until explicitly set; update() checks before calling.
-  void (*_shortPressHandler)(char)      = nullptr;  // tap or auto-repeat fire
-  void (*_longPressHandler)(char)       = nullptr;  // sustained hold beyond longPressTime
-  void (*_comboHandler)(char, char)     = nullptr;  // second button pressed while first is held
+  void (*_shortPressHandler)(char)  = nullptr;
+  void (*_longPressHandler)(char)   = nullptr;
+  void (*_comboHandler)(char, char) = nullptr;
 
-  // ---- Per-button configuration (index = btn - '1') -----------------------
-  // Set once after begin() via setButtonRepeating() / setButtonLongPressTime().
+  bool     _repeating[MAX_BTNS]     = {};
+  uint32_t _longPressTime[MAX_BTNS] = {};
+  bool     _active[MAX_BTNS]        = {};
+  uint32_t _pressStart[MAX_BTNS]    = {};
+  uint32_t _lastRepeat[MAX_BTNS]    = {};
+  bool     _longFired[MAX_BTNS]     = {};
+  bool     _comboFired[MAX_BTNS]    = {};
 
-  // true  → fire shortPressHandler immediately on press-down, then auto-repeat
-  //         at REPEAT_MS intervals after SHORT_PRESS_MAX hold duration.
-  // false → fire shortPressHandler on release (if held < SHORT_PRESS_MAX),
-  //         or fire longPressHandler once the longPressTime threshold is crossed.
-  bool          _repeating[MAX_BTNS]    = {};
-
-  // Per-button hold threshold (ms) before longPressHandler fires.
-  // Defaults to SHORT_PRESS_MAX; overridden for button 4 with LONG_PRESS_CONFIG_TIME.
-  // Ignored for repeating buttons (they never fire longPressHandler).
-  unsigned long _longPressTime[MAX_BTNS]= {};
-
-  // ---- Per-button runtime state (reset on each press) ---------------------
-
-  // true while the button is physically held down (PRESSED or HOLD state).
-  // Cleared on RELEASED or IDLE (missed-release recovery).
-  bool          _active[MAX_BTNS]       = {};
-
-  // millis() timestamp recorded when the button first transitioned to PRESSED.
-  // Used to calculate how long the button has been held: (now - _pressStart[i]).
-  unsigned long _pressStart[MAX_BTNS]   = {};
-
-  // millis() timestamp of the most recent auto-repeat fire for this button.
-  // Used to enforce the REPEAT_MS spacing between successive repeat callbacks.
-  // Only meaningful when _repeating[i] is true.
-  unsigned long _lastRepeat[MAX_BTNS]   = {};
-
-  // Guard flag: set to true the first time longPressHandler is called for this
-  // press.  Prevents the callback from firing again on subsequent HOLD scans and
-  // also suppresses the shortPressHandler on release (one action per press).
-  bool          _longFired[MAX_BTNS]    = {};
-
-  // Guard flag: set to true when this button is involved in a combo press
-  // (either as the "held" button or the newly "pressed" button).
-  // Suppresses both the shortPressHandler and longPressHandler for that button
-  // so the combo action is the only event fired.
-  bool          _comboFired[MAX_BTNS]   = {};
-
-  // Map '1'–'9' → 0–8; returns -1 for unrecognised chars
-  static int  _btnIdx(char btn)  { return (btn >= '1' && btn <= '9') ? btn - '1' : -1; }
-  static char _btnChar(int idx)  { return '1' + idx; }
+  static int  _btnIdx(char btn) { return (btn >= '1' && btn <= '9') ? btn - '1' : -1; }
+  static char _btnChar(int idx) { return '1' + idx; }
 };

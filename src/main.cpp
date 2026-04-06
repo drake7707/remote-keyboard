@@ -183,8 +183,8 @@ void on_combo(char held, char pressed) {
   }
 }
 
-// Battery reading event — fired by BatteryManager, glued to BLE here in main.
-void on_battery_reading(uint8_t percent) {
+// Battery reading event — fired by BatteryManager only when the percentage changes.
+void on_battery_updated(uint8_t percent) {
   if (DEBUG) printf("Battery: %d%%\n", percent);
   bleManager.setBatteryLevel(percent);
 }
@@ -235,7 +235,7 @@ extern "C" void app_main() {
 
   if (configManager.isBatteryEnabled()) {
     batteryManager.begin(ADC_BATTERY_CHANNEL);
-    batteryManager.setBatteryReadingHandler(on_battery_reading);
+    batteryManager.setBatteryReadingHandler(on_battery_updated);
   }
 
   // Enable automatic light sleep when the CPU is idle.

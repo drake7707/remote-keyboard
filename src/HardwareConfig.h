@@ -10,14 +10,15 @@
 // Status LED
 const int LED_PIN = 6;
 
-// Keypad matrix — column drive lines (same regardless of battery mode).
-static const uint8_t KEYPAD_COL_PINS[3] = {3, 4, 5};
+// Keypad matrix — column drive lines.
+// Both modes currently use the same pins; having separate arrays means a
+// future hardware revision can diverge without touching any other file.
+static const uint8_t KEYPAD_COL_PINS_DEFAULT[3] = {3, 4, 5};  // battery disabled
+static const uint8_t KEYPAD_COL_PINS_BATTERY[3]  = {3, 4, 5};  // battery enabled
 
-// Returns the column-pin array for the given battery mode.
-// Column pins are the same in both modes; the function exists for API symmetry
-// with getKeypadRowPins().
-inline const uint8_t* getKeypadColPins([[maybe_unused]] bool withBattery) {
-  return KEYPAD_COL_PINS;
+// Returns the correct column-pin array for the given battery mode.
+inline const uint8_t* getKeypadColPins(bool withBattery) {
+  return withBattery ? KEYPAD_COL_PINS_BATTERY : KEYPAD_COL_PINS_DEFAULT;
 }
 
 // Keypad row pins come in two flavours depending on whether the battery ADC

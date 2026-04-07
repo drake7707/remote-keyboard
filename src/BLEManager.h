@@ -195,9 +195,14 @@ private:
   KbReport              _rep       = {};        // Current keyboard report state
   uint16_t              _repCC     = 0;         // Current Consumer Control report state (USB usage code)
 
-  void onConnect(NimBLEServer*, NimBLEConnInfo&) override {
+  void onConnect(NimBLEServer*, NimBLEConnInfo& conn_info) override {
     _connected = true;
     if (DEBUG) printf("BLE connected\n");
+
+    // Reduce connection interval to 50–100 ms (from default 7.5 ms) to save power.
+    NimBLEAttValue params;
+    // Use NimBLE's updateConnParams: min=40, max=80 (units of 1.25 ms = 50–100 ms)
+    _srv->updateConnParams(conn_info.getConnHandle(), 40, 80, 0, 400);
   }
 
   void onDisconnect(NimBLEServer*, NimBLEConnInfo&, int reason) override {

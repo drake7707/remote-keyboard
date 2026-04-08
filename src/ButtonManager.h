@@ -6,7 +6,6 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include "Keypad.h"
-#include "HardwareConfig.h"
 
 extern const int DEBUG;
 
@@ -38,9 +37,14 @@ public:
 
   ButtonManager()
     : _keypad(makeKeymap(_buttons), _rowPins, _colPins, ROWS, COLS)
-  {
-    memcpy(_rowPins, KEYPAD_ROW_PINS, sizeof(_rowPins));
-    memcpy(_colPins, KEYPAD_COL_PINS, sizeof(_colPins));
+  {}
+
+  // Apply the row and column pin layout before begin().
+  // Use getKeypadRowPins() / getKeypadColPins() from HardwareConfig.h to
+  // select the correct configuration for the battery / no-battery mode.
+  void setPinConfiguration(const uint8_t* rowPins, const uint8_t* colPins) {
+    memcpy(_rowPins, rowPins, sizeof(_rowPins));
+    memcpy(_colPins, colPins, sizeof(_colPins));
   }
 
   void begin() {

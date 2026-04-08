@@ -30,19 +30,30 @@ jobs:
           sed -i "s/const char FIRMWARE_VERSION\[\] = \".*\";/const char FIRMWARE_VERSION[] = \"$VERSION\";/" src/main.cpp
           sed -i 's/const int DEBUG = 1;/const int DEBUG = 0;/' src/main.cpp
 
-      - name: Build firmware
+      - name: Build standard firmware (LEGACY=false)
         run: pio run
+
+      - name: Save standard firmware binary
+        run: cp .pio/build/esp32-c3-devkitm-1/firmware.bin firmware.bin
+
+      - name: Build legacy firmware (LEGACY=true)
+        run: |
+          sed -i 's/const bool LEGACY = false;/const bool LEGACY = true;/' src/main.cpp
+          pio run
+          cp .pio/build/esp32-c3-devkitm-1/firmware.bin firmware_legacy.bin
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: firmware
-          path: .pio/build/esp32-c3-devkitm-1/firmware.bin
+          path: |
+            firmware.bin
+            firmware_legacy.bin
 
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "v$VERSION" .pio/build/esp32-c3-devkitm-1/firmware.bin \
+          gh release create "v$VERSION" firmware.bin firmware_legacy.bin \
             --title "Firmware v$VERSION" \
             --notes "Automated firmware build v$VERSION (run #${{ github.run_number }})"

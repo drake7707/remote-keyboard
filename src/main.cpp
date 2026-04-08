@@ -31,12 +31,13 @@
 // ---------------------------------------------------------------------------
 // Build flags
 // ---------------------------------------------------------------------------
-const int DEBUG = 0;  // Set to 1 only when Serial monitor is attached
+const int DEBUG = 1;  // Set to 1 only when Serial monitor is attached
+const bool LEGACY = false; // Legacy has a different pin layout and no battery support
 
 // ---------------------------------------------------------------------------
 // Firmware version -- shown in the web config UI
 // ---------------------------------------------------------------------------
-const char FIRMWARE_VERSION[] = "1.1.0";
+const char FIRMWARE_VERSION[] = "1.2.0";
 
 // ---------------------------------------------------------------------------
 // Manager includes
@@ -46,6 +47,7 @@ const char FIRMWARE_VERSION[] = "1.1.0";
 #include "BLEManager.h"
 #include "ConfigManager.h"
 #include "ButtonManager.h"
+#include "BatteryManager.h"
 
 // ---------------------------------------------------------------------------
 // Global manager instances
@@ -54,6 +56,7 @@ StatusLedManager ledManager;
 BLEManager       bleManager("JaxeADV", 100);
 ConfigManager    configManager;
 ButtonManager    buttonManager;
+BatteryManager   batteryManager;
 
 // Apply the currently active keymap to ButtonManager.
 // Call once in setup() and again whenever the active keymap changes.
@@ -181,6 +184,12 @@ void on_combo(char held, char pressed) {
   }
 }
 
+// Battery reading event — fired by BatteryManager only when the percentage changes.
+void on_battery_updated(uint8_t percent) {
+  if (DEBUG) printf("Battery: %d%%\n", percent);
+  bleManager.setBatteryLevel(percent);
+}
+
 // ---------------------------------------------------------------------------
 // ESP-IDF entry point
 // ---------------------------------------------------------------------------
@@ -196,14 +205,17 @@ extern "C" void app_main() {
   esp_netif_init();
   esp_event_loop_create_default();
 
-  ledManager.begin(LED_PIN);
+  
 
   configManager.begin(&ledManager, FIRMWARE_VERSION);
   configManager.loadKeymap();
   configManager.loadActiveKeymap();
   configManager.loadBleName();
+  configManager.loadBatteryEnabled();
 
   bleManager.begin(configManager.getBleName());
+
+  ledManager.begin(getLEDPin(LEGACY));
 
   // If "Clear BLE Bonds" was requested from the web UI, delete stored bonds
   // now that NimBLE is initialised. The flag was written before the reboot.
@@ -213,6 +225,8 @@ extern "C" void app_main() {
     if (DEBUG) printf("BLE bonds cleared on request.\n");
   }
 
+  buttonManager.setPinConfiguration(getKeypadRowPins(LEGACY),
+                                    getKeypadColPins(LEGACY));
   buttonManager.begin();
   applyKeymap();
   // Flash N times to indicate which keymap is active on boot
@@ -222,11 +236,16 @@ extern "C" void app_main() {
   buttonManager.setLongPressHandler(on_long_press);
   buttonManager.setComboHandler(on_combo);
 
+  if (!LEGACY && configManager.isBatteryEnabled()) {
+    batteryManager.begin(ADC_BATTERY_CHANNEL);
+    batteryManager.setBatteryReadingHandler(on_battery_updated);
+  }
+
   // Enable automatic light sleep when the CPU is idle.
   // Requires CONFIG_PM_ENABLE=y and CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
   // in sdkconfig.defaults (already set).
   esp_pm_config_t pm_config = {
-    .max_freq_mhz      = 80, // reduce from 160 to save power; BLE and WiFi still work fine at 80 MHz
+    .max_freq_mhz      = 160, // reduce from 160 to save power; BLE and WiFi still work fine at 80 MHz
     .min_freq_mhz      = 40,   // lowest valid ESP32-C3 frequency that keeps all peripherals stable
     .light_sleep_enable = true,
   };
@@ -238,9 +257,12 @@ extern "C" void app_main() {
 
   if (DEBUG) printf("Setup complete.\n");
 
+  const bool batteryEnabled = !LEGACY && configManager.isBatteryEnabled();
+
   // Main loop
   while (true) {
     buttonManager.update();
+    if (batteryEnabled) batteryManager.update();
 
     // Track BLE connection state changes
     AppStatus status = ledManager.getStatus();

@@ -36,8 +36,8 @@ const char DEFAULT_BLE_NAME[] = "BarButtonsMod";
 // ACTIVEKEYMAP, BLENAME, BATTERYSECTIONSTYLE, etc. with current values before
 // sending.
 // ---------------------------------------------------------------------------
-extern const uint8_t config_html_start[] asm("_binary_src_config_min_html_start");
-extern const uint8_t config_html_end[]   asm("_binary_src_config_min_html_end");
+extern const uint8_t config_html_start[] asm("_binary_config_min_html_start");
+extern const uint8_t config_html_end[]   asm("_binary_config_min_html_end");
 
 class ConfigManager {
 public:
@@ -311,8 +311,13 @@ private:
 
   // Replace first occurrence of 'from' in 's' with 'to'.
   static void _strReplace(std::string& s, const std::string& from, const std::string& to) {
-    size_t pos = s.find(from);
-    if (pos != std::string::npos) s.replace(pos, from.size(), to);
+      if (from.empty()) return;
+
+      size_t pos = 0;
+      while ((pos = s.find(from, pos)) != std::string::npos) {
+          s.replace(pos, from.length(), to);
+          pos += to.length(); // move past the replacement
+      }
   }
 
   // Trim leading/trailing whitespace in-place.

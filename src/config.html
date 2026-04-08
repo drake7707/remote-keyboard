@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BarButtons Mod Keymap</title>
+<style>
+body{font-family:sans-serif;max-width:740px;margin:20px auto;padding:0 12px}
+h2{color:#2c2c2c;margin-bottom:4px}
+p.sub{color:#666;font-size:.9em;margin-top:0}
+footer{margin-top:32px;padding-top:12px;border-top:1px solid #ddd;color:#999;font-size:.82em;text-align:center}
+footer a{color:#888}
+table{width:100%;border-collapse:collapse;margin-top:12px}
+th,td{padding:7px 10px;text-align:left;border:1px solid #ddd}
+th{background:#f5f5f5;font-weight:600}
+select{width:100%;box-sizing:border-box;padding:3px}
+.save{margin-top:16px;background:#2a7cdf;color:#fff;border:none;
+      padding:10px 28px;font-size:1em;border-radius:4px;cursor:pointer}
+.save:hover{background:#1a5cb0}
+.hint{color:#888;font-size:.82em;margin-top:6px}
+.danger{background:#c0392b}.danger:hover{background:#962d22}
+.field{margin-top:14px}
+.field label{font-weight:600;display:block;margin-bottom:4px}
+.field input[type=text]{width:100%;max-width:320px;box-sizing:border-box;
+  padding:5px 8px;font-size:1em;border:1px solid #ccc;border-radius:3px}
+.tab{cursor:pointer;padding:7px 18px;border:1px solid #ccc;background:#f5f5f5;
+     font-size:.95em;border-radius:3px 3px 0 0;margin-right:4px}
+.tab.active{background:#2a7cdf;color:#fff;border-color:#2a7cdf}
+.kmtab{border:1px solid #ddd;border-radius:0 4px 4px 4px;padding:10px;margin-bottom:12px}
+</style>
+</head>
+<body>
+<h2>BarButtons Mod Keymap Config</h2>
+<p class="sub">AP configuration mode</p>
+<form method="POST" action="/save">
+<div style="margin-bottom:0">
+  <button type="button" id="tab1" class="tab" onclick="showKm(1)">Keymap 1</button>
+  <button type="button" id="tab2" class="tab" onclick="showKm(2)">Keymap 2</button>
+  <button type="button" id="tab3" class="tab" onclick="showKm(3)">Keymap 3</button>
+</div>
+<div id="km1" class="kmtab" style="display:none">
+  <table><thead><tr><th>Button</th><th>Short Press</th><th>Long Press</th></tr></thead>
+  <tbody id="rows1"></tbody></table>
+</div>
+<div id="km2" class="kmtab" style="display:none">
+  <table><thead><tr><th>Button</th><th>Short Press</th><th>Long Press</th></tr></thead>
+  <tbody id="rows2"></tbody></table>
+</div>
+<div id="km3" class="kmtab" style="display:none">
+  <table><thead><tr><th>Button</th><th>Short Press</th><th>Long Press</th></tr></thead>
+  <tbody id="rows3"></tbody></table>
+</div>
+<p class="hint">Active keymap: <strong>ACTIVEKEYMAP</strong> &mdash; switch on device with Button&nbsp;4+1, 4+2, or 4+3 (LED flashes 1/2/3 times to confirm).<br>
+Button 4 long-press = always enters this config mode (not remappable).<br>
+Tap Button 4 on the device to exit without saving.</p>
+<div class="field">
+<label for="blename">BLE Device Name:</label>
+<input type="text" id="blename" name="blename" value="BLENAME"
+       maxlength="32" pattern="[ -~]+" required
+       placeholder="BarButtonsMod">
+<p class="hint">1&#8211;32 printable ASCII characters &mdash; shown in the Bluetooth pairing dialog.</p>
+</div>
+<!-- BATTERYSECTIONSTYLE is replaced at runtime with style="display:none" on legacy builds -->
+<div class="field" BATTERYSECTIONSTYLE>
+<label><input type="checkbox" name="battery_enabled" value="1" BATTERYENABLED> Enable battery level reading</label>
+<p class="hint">Reads the cell voltage via GPIO0 (ADC) and reports charge percentage over BLE.<br>
+<strong>Requires</strong> the 680&thinsp;k&#8486; / 220&thinsp;k&#8486; voltage divider and remaps the third keypad row (GPIO0&thinsp;&rarr;&thinsp;GPIO7). Takes effect after Save&nbsp;&amp;&nbsp;Reboot.</p>
+</div>
+<input type="submit" class="save" value="Save &amp; Reboot">
+</form>
+<hr style="margin:24px 0">
+<h3>Firmware Update</h3>
+<form method="POST" action="/update" enctype="multipart/form-data" id="otaFrm">
+<p><input type="file" name="firmware" accept=".bin" required></p>
+<input type="submit" class="save" value="Flash Firmware" id="otaBtn">
+<p class="hint" id="otaSt">Upload a .bin compiled for this board. Device reboots after a successful flash.</p>
+</form>
+<hr style="margin:24px 0">
+<h3>BLE Bonds</h3>
+<p class="sub">Clear stored pairing data if the device fails to reconnect after a reset. You will need to re-pair your phone afterwards.</p>
+<form method="POST" action="/clearbonds" id="bondFrm">
+<input type="submit" class="save danger" value="Clear BLE Bonds &amp; Reboot" id="bondBtn">
+</form>
+<hr style="margin:24px 0">
+<h3>Reset to Defaults</h3>
+<p class="sub">Fill in the default keymap for the currently visible tab and the BLE device name. Save &amp; Reboot to apply.</p>
+<button type="button" class="save danger" onclick="resetToDefaults()">Reset to Defaults</button>
+<script>
+document.getElementById('otaFrm').onsubmit=function(){
+  var b=document.getElementById('otaBtn');
+  b.value='Uploading\u2026';b.disabled=true;
+  document.getElementById('otaSt').textContent='Uploading \u2014 do not close this page\u2026';
+};
+document.getElementById('bondFrm').onsubmit=function(){
+  if(!confirm('Clear all BLE bonds?\nThe device will reboot. You will need to re-pair your phone.')) return false;
+  var b=document.getElementById('bondBtn');
+  b.value='Clearing\u2026';b.disabled=true;
+};
+var DS=[DEFAULTSHORT];
+var DL=[DEFAULTLONG];
+var KM=[
+  {S:[SHORTVALS1],L:[LONGVALS1]},
+  {S:[SHORTVALS2],L:[LONGVALS2]},
+  {S:[SHORTVALS3],L:[LONGVALS3]}
+];
+var curKm=ACTIVEKEYMAP;
+// Key options: [code, label]
+var K=[
+  [43,'+'],[45,'-'],[42,'*'],[47,'/'],[61,'='],
+  [32,'Space'],[46,'.'],[44,','],[59,';'],[58,':'],
+  [33,'!'],[63,'?'],[64,'@'],[35,'#'],[37,'%'],
+  [176,'Enter'],[177,'Esc'],[178,'Backspace'],[179,'Tab'],
+  [209,'Insert'],[210,'Home'],[211,'Page Up'],
+  [212,'Delete'],[213,'End'],[214,'Page Down'],
+  [218,'Up Arrow'],[217,'Down Arrow'],[216,'Left Arrow'],[215,'Right Arrow'],
+  [193,'Caps Lock'],
+  [194,'F1'],[195,'F2'],[196,'F3'],[197,'F4'],[198,'F5'],[199,'F6'],
+  [200,'F7'],[201,'F8'],[202,'F9'],[203,'F10'],[204,'F11'],[205,'F12'],
+  [224,'Play/Pause'],[225,'Stop'],[226,'Next Track'],[227,'Prev Track'],
+  [228,'Volume Up'],[229,'Volume Down'],[230,'Mute']
+];
+for(var i=97;i<=122;i++) K.push([i, String.fromCharCode(i)]); // a-z
+for(var i=48;i<=57;i++)  K.push([i, String.fromCharCode(i)]); // 0-9
+
+function buildOpts(cur, withRepeat) {
+  var h = '';
+  if (withRepeat)
+    h += '<option value="0"' + (cur === 0 ? ' selected' : '') + '>\u21BA Repeat short key</option>';
+  K.forEach(function(k) {
+    var sel = (k[0] === cur && !(withRepeat && cur === 0)) ? ' selected' : '';
+    h += '<option value="' + k[0] + '"' + sel + '>' + k[1] + '</option>';
+  });
+  return h;
+}
+
+for (var km = 1; km <= 3; km++) {
+  var tbody = document.getElementById('rows' + km);
+  var S = KM[km - 1].S, L = KM[km - 1].L;
+  for (var i = 0; i < 8; i++) {
+    var tr = document.createElement('tr');
+    // Button 4 (index 3) long press is reserved -- show as disabled info cell
+    var longCell = (i === 3)
+      ? '<td><em style="color:#999">reserved (config trigger)</em><input type="hidden" name="l' + km + '_3" value="' + L[3] + '"></td>'
+      : '<td><select name="l' + km + '_' + i + '">' + buildOpts(L[i], true) + '</select></td>';
+    tr.innerHTML =
+      '<td><strong>Button ' + (i + 1) + '</strong></td>' +
+      '<td><select name="s' + km + '_' + i + '">' + buildOpts(S[i], false) + '</select></td>' +
+      longCell;
+    tbody.appendChild(tr);
+  }
+}
+
+function showKm(n) {
+  document.getElementById('km' + curKm).style.display = 'none';
+  document.getElementById('tab' + curKm).className = 'tab';
+  curKm = n;
+  document.getElementById('km' + curKm).style.display = '';
+  document.getElementById('tab' + curKm).className = 'tab active';
+}
+showKm(curKm);
+
+function resetToDefaults() {
+  var rows = document.getElementById('rows' + curKm).rows;
+  for (var i = 0; i < 8; i++) {
+    var sels = rows[i].querySelectorAll('select');
+    if (sels[0]) sels[0].value = DS[i];
+    if (sels[1]) sels[1].value = DL[i];
+  }
+  document.getElementById('blename').value = DEFAULTBLENAME;
+}
+</script>
+<footer>BarButtonsMod vFWVER &mdash; by <a href="https://github.com/drake7707/" target="_blank" rel="noopener">Drakarah</a> &mdash; <a href="https://github.com/drake7707/" target="_blank" rel="noopener">github.com/drake7707</a>. Derived from <a href='https://jaxeadv.com/barbuttons/'>BarButtons by JADXAdv</a></footer>
+</body>
+</html>

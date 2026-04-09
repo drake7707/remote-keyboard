@@ -182,7 +182,30 @@ public:
     if (DEBUG) printf("Battery enabled saved: %s\n", _batteryEnabled ? "yes" : "no");
   }
 
+  void loadBLEPowerSaving() {
+    nvs_handle_t h;
+    uint8_t flag = 0;
+    if (nvs_open("sys", NVS_READONLY, &h) == ESP_OK) {
+      nvs_get_u8(h, "blepsen", &flag);
+      nvs_close(h);
+    }
+    _blePowerSaving = (flag != 0);
+    if (DEBUG) printf("BLE power saving: %s\n", _blePowerSaving ? "yes" : "no");
+  }
+
+  void saveBLEPowerSaving() {
+    nvs_handle_t h;
+    if (nvs_open("sys", NVS_READWRITE, &h) == ESP_OK) {
+      nvs_set_u8(h, "blepsen", _blePowerSaving ? 1 : 0);
+      nvs_commit(h);
+      nvs_close(h);
+    }
+    if (DEBUG) printf("BLE power saving: %s\n", _blePowerSaving ? "yes" : "no");
+  }
+
   bool isBatteryEnabled() const { return _batteryEnabled; }
+
+  bool allowBLEPowerSaving() const { return _blePowerSaving; }  
 
   // ---------------------------------------------------------------------------
   // NVS -- "clear bonds" flag
@@ -299,6 +322,7 @@ private:
   uint8_t           _long[3][8]   = {};
   int               _activeKeymap = 1;
   bool              _batteryEnabled = false;
+  bool              _blePowerSaving = false;
   char              _bleName[BLE_NAME_MAX_LEN + 1] = "BarButtonsMod";
   httpd_handle_t    _server    = nullptr;
   esp_netif_t*      _apNetif   = nullptr;
@@ -449,6 +473,7 @@ private:
     }
     _strReplace(html, "BLENAME", bn);
     _strReplace(html, "BATTERYENABLED", _batteryEnabled ? "checked" : "");
+    _strReplace(html, "BLEPOWERSAVING", _blePowerSaving ? "checked" : "");
     _strReplace(html, "BATTERYSECTIONSTYLE", LEGACY ? "style=\"display:none\"" : "");
     _strReplace(html, "FWVER", std::string(_firmwareVersion));
 
@@ -487,6 +512,11 @@ private:
     std::string batParam = _formParam(body.c_str(), "battery_enabled");
     _batteryEnabled = (batParam == "1");
     saveBatteryEnabled();
+
+    
+    std::string blePowerSaveParam = _formParam(body.c_str(), "ble_power_saving");
+    _blePowerSaving = (blePowerSaveParam == "1");
+    saveBLEPowerSaving();
 
     static const char resp[] =
       "<!DOCTYPE html><html>"

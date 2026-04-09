@@ -15,7 +15,7 @@ const int LED_PIN = 2;
 static const uint8_t KEYPAD_COL_PINS_LEGACY[3] = {3, 4, 5};  // battery disabled
 static const uint8_t KEYPAD_COL_PINS[3]  = {3, 4, 5};  // battery enabled
 
-inline const uint8_t getLEDPin(bool isLegacy) {
+inline uint8_t getLEDPin(bool isLegacy) {
   return isLegacy ? LED_PIN_LEGACY : LED_PIN;
 }
 

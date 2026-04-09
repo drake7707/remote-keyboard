@@ -1,8 +1,6 @@
 # Description
 
-Mod of [BarButtons](https://jaxeadv.com/barbuttons) targeting an **ESP32-C3 Zero** microcontroller.
-- The original firmware v1 of BarButtons is only loosely used as a reference, most of it is rewritten from scratch with the help of Copilot, but the code is manually reviewed so the code structure and code quality is as if I would have written it manually.
-- The 3d stl files are modified in FreeCAD to use the hardware I had on hand, see below.
+Remote bluetooth keyboard targeting an **ESP32-C3 Zero** microcontroller.
 
 ---
 
@@ -10,13 +8,13 @@ Mod of [BarButtons](https://jaxeadv.com/barbuttons) targeting an **ESP32-C3 Zero
 
 ### Overview
 
-Based on the original BarButtons v1 firmware, this version replaces the STA-based OTA workflow with a **self-hosted WiFi Access Point** and a **browser-based configuration interface**.
+Based on the original [BarButtons](https://jaxeadv.com/barbuttons) v1 firmware, this version replaces the STA-based OTA workflow with a **self-hosted WiFi Access Point** and a **browser-based configuration interface**.
 
 ### Features
 
 | Feature | Description |
 |---|---|
-| **AP config mode** | Starts a WiFi AP (`BarButtons-Config` / `barbuttons`) on demand |
+| **AP config mode** | Starts a WiFi AP (`RemoteKeyboard-Config` / `remotekeyboard`) on demand |
 | **Web keymap editor** | Browser UI at `http://192.168.4.1` to configure short and long press actions for all 8 buttons |
 | **Multiple keymaps** | Three independent keymap slots switchable on-device via Button 4 combos; active slot persisted across reboots |
 | **NVS persistence** | All settings (keymaps, active slot, BLE name) stored in flash via the `Preferences` library; survive reboots and firmware updates |
@@ -37,7 +35,7 @@ Based on the original BarButtons v1 firmware, this version replaces the STA-base
 ### Entering / exiting config mode
 
 1. **Hold Button 4 for ~5 seconds** (LED starts flashing rapidly).
-2. Connect to WiFi SSID **`BarButtons-Config`**, password **`barbuttons`**.
+2. Connect to WiFi SSID **`RemoteKeyboard-Config`**, password **`remotekeyboard`**.
 3. Open **`http://192.168.4.1`** in a browser.
 4. **Keymap tab** — set Short Press / Long Press action per button for any of the three keymap slots, then click **Save & Reboot**.
 5. **Firmware tab** — choose a `.bin` and click **Flash Firmware** for OTA update.
@@ -61,6 +59,23 @@ The firmware supports three independent keymap slots.  Each slot has its own Sho
 | Hold Button 4, then press Button 3 | Switch to Keymap 3 |
 
 After switching, the LED flashes **1, 2, or 3 times** to confirm which keymap is now active.  The selection is saved to flash immediately and survives reboots.
+
+### Multi-connection
+
+It's possible to connect multiple devices and send keystrokes to all of them (default) or to a specific target.
+
+To save power BLE advertisements are only sent for 60 seconds after the first device is connected, if the second device has not connected in that time then it will never connect. When no devices are connected it will advertise indefintely and will restart advertisements when a device is connected, so turning the keyboard off and on while both devices are in range should connect.
+
+Targets are automatically reconnected by the saved bonds, however only 1 direct advertisement is allowed at the same time and it defaults to undirected advertisements after a timeout, that means if device 2 is ready to connect but device 1 is not and the direct advertisements is directed towards device 1, device 2 will be able to see the undirected advertisements but will not automatically reconnect. This is a limitation of the BLE stack. So pair the device you use the most first, that way it connects to device 1 and will then attempt direct advertisements for device 2, which when in range will also automatically connect.
+
+Targets are sorted on their MAC address so if 2 devices are connected, this first device in the cycle will always be the same regardless of order of connection.
+
+** Switching target device **
+
+| Combo | Action |
+|---|---|
+| Hold Button 4, then press Button 5 | Cycles between the differen targets or broadcast |
+
 
 ### Application state diagram
 
@@ -134,7 +149,7 @@ Unfortunately ADC1 only works with GPIO0-5 so I had to remap the pins. The legac
 
 ---
 
-## Hardware / Casing modifications
+## Hardware / Casing modifications of the original BarButtons design
 
 The 3-D printed casing was modified from the original BarButtons design as follows:
 

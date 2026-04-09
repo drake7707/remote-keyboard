@@ -2,7 +2,7 @@
 <html>
    <head>
       <meta name="viewport" content="width=device-width,initial-scale=1">
-      <title>BarButtons Mod Keymap</title>
+      <title>Remote keyboard Keymap</title>
       <style>
          body {
          font-family: sans-serif;
@@ -114,7 +114,7 @@
       </style>
    </head>
    <body>
-      <h2>BarButtons Mod Keymap Config</h2>
+      <h2>Remote keyboard Keymap Config</h2>
       <p class="sub">AP configuration mode</p>
       <form method="POST" action="/save">
          <div style="margin-bottom:0">
@@ -166,7 +166,7 @@
          <div class="field">
             <label for="blename">BLE Device Name:</label>
             <input type="text" id="blename" name="blename" value="BLENAME" maxlength="32" pattern="[ -~]+" required
-               placeholder="BarButtonsMod">
+               placeholder="RemoteKeyboard">
             <p class="hint">1&#8211;32 printable ASCII characters &mdash; shown in the Bluetooth pairing dialog.</p>
          </div>
          <!-- BATTERYSECTIONSTYLE is replaced at runtime with style="display:none" on legacy builds -->
@@ -287,9 +287,9 @@
            document.getElementById('blename').value = DEFAULTBLENAME;
          }
       </script>
-      <footer>BarButtonsMod vFWVER &mdash; by <a href="https://github.com/drake7707/" target="_blank"
+      <footer>Remote keyboard vFWVER &mdash; by <a href="https://github.com/drake7707/" target="_blank"
          rel="noopener">Drakarah</a> &mdash; <a href="https://github.com/drake7707/" target="_blank"
-         rel="noopener">github.com/drake7707</a>. Derived from <a href='https://jaxeadv.com/barbuttons/'>BarButtons by
+         rel="noopener">github.com/drake7707</a>. Originally used for <a href='https://jaxeadv.com/barbuttons/'>BarButtons by
          JADXAdv</a>
       </footer>
    </body>

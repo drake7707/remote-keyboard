@@ -1,16 +1,16 @@
 /*
-   BarButtons firmware - Custom AP Keymap Configuration version
+   Remote Keyboard firmware - Custom AP Keymap Configuration version
 
    Modified from original BarButtons v1 (https://jaxeadv.com/barbuttons).
    Instead of OTA firmware updates over STA, this version:
-     - Hosts a WiFi Access Point ("BarButtons-Config")
+     - Hosts a WiFi Access Point ("RemoteKeyboard-Config")
      - Serves a web page at 192.168.4.1 for configuring the keymap of 8 buttons
      - Persists the keymap to NVS flash via the NVS API
      - Accepts OTA firmware (.bin) uploads directly from the browser
 
    HOW TO CONFIGURE / UPDATE:
      1. Hold Button 4 for ~5 seconds until the LED flashes rapidly.
-     2. Connect to WiFi: SSID "BarButtons-Config", password "barbuttons".
+     2. Connect to WiFi: SSID "RemoteKeyboard-Config", password "remotekeyboard".
      3. Open http://192.168.4.1 in a browser.
      4. Keymap: set Short/Long Press actions per button, then "Save & Reboot".
      5. Firmware: choose a .bin file and press "Flash Firmware".
@@ -54,7 +54,7 @@ const char FIRMWARE_VERSION[] = "1.2.0";
 // Global manager instances
 // ---------------------------------------------------------------------------
 StatusLedManager ledManager;
-BLEManager bleManager("JaxeADV", 100);
+BLEManager bleManager("Drakarah", 100);
 ConfigManager configManager;
 ButtonManager buttonManager;
 BatteryManager batteryManager;

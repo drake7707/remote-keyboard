@@ -8,6 +8,7 @@
 #include <NimBLEHIDDevice.h>
 #include "HIDTypes.h"
 #include "KeyCodes.h"
+#include "BLEAdvertisingManager.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <map>
@@ -81,8 +82,7 @@ private:
   KbReport _report = {};
   uint16_t _reportCC = 0;
 
-  NimBLEAddress getFirstUnconnectedBond();
-  void doAdvertisingIfConnectionLimitNotReached();
+  BLEAdvertisingManager _advManager;
 
   void onConnect(NimBLEServer *server, NimBLEConnInfo &conn_info) override;
   void onDisconnect(NimBLEServer *, NimBLEConnInfo &conn_info, int reason) override;

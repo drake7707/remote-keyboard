@@ -5,14 +5,9 @@
 static constexpr int ADC_FULL_SCALE_MV = 3100;
 static constexpr int ADC_MAX_RAW       = 4095;
 
-// Sentinel value for _lastPct meaning "no reading taken yet".
-// Must be outside the valid 0–100 % range.
-static constexpr uint8_t BAT_PCT_NO_READING = 0xFF;
-
 void BatteryManager::begin(adc_channel_t channel, uint32_t readIntervalMs) {
   _channel    = channel;
   _intervalMs = readIntervalMs;
-  _lastPct    = BAT_PCT_NO_READING;
 
   adc_oneshot_unit_init_cfg_t unitCfg = {
     .unit_id  = ADC_UNIT_1,

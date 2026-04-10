@@ -92,8 +92,7 @@ void BLEManager::begin(const char *name, bool negotiatePowerSavingConnectionPara
   _hid->setManufacturer(_manufacturer);
   _hid->setPnp(0x02, 0xe502, 0xa111, 0x0210);
   _hid->setHidInfo(0x00, 0x02);
-  _hid->setReportMap((uint8_t *)_hidReportDesc, sizeof(_hidReportDesc));
-  _hid->startServices();
+  _hid->setReportMap((uint8_t *)_hidReportDesc, sizeof(_hidReportDesc));  
   _hid->setBatteryLevel(_battery);
 
   _advManager.begin(_hid, name, max_connections);

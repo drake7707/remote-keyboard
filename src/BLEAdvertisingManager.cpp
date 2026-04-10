@@ -83,7 +83,7 @@ void BLEAdvertisingManager::advance()
     if (elapsed >= MAX_ADVERTISING_DURATION_AFTER_ALREADY_CONNECTED_MS)
     {
       if (DEBUG)
-        printf("Advertising budget exhausted after %u ms, stopping\n", elapsed);
+        printf("Advertising budget exhausted after %lu ms, stopping\n", elapsed);
       return;
     }
     remainingBudgetMs = MAX_ADVERTISING_DURATION_AFTER_ALREADY_CONNECTED_MS - elapsed;
@@ -105,7 +105,7 @@ void BLEAdvertisingManager::advance()
                                : std::min(remainingBudgetMs, DIRECTED_ADV_STEP_DURATION_MS);
 
     if (DEBUG)
-      printf("Directed adv to bonded peer %s for %u ms\n", mac.c_str(), dirDuration);
+      printf("Directed adv to bonded peer %s for %lu ms\n", mac.c_str(), dirDuration);
 
     adv->start(dirDuration, &addr);
     return;
@@ -113,7 +113,7 @@ void BLEAdvertisingManager::advance()
 
   // All bonds tried (or no bonds at all) — fall back to undirected advertising.
   if (DEBUG)
-    printf("All bonds tried, starting undirected advertising for %u ms\n", remainingBudgetMs);
+    printf("All bonds tried, starting undirected advertising for %lu ms\n", remainingBudgetMs);
 
   adv->start(remainingBudgetMs);
 }

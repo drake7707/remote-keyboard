@@ -14,8 +14,8 @@ void BLEAdvertisingManager::begin(NimBLEHIDDevice *hid, const char *deviceName, 
   // When advertising ends (directed timeout, connection, or explicit stop)
   // NimBLE fires this callback — we use it to step to the next bond or fall
   // back to undirected advertising.
-  NimBLEDevice::getAdvertising()->setAdvertisingCompleteCallback(
-      [this](NimBLEAdvertising *) { advance(); });
+    NimBLEDevice::getAdvertising()->setAdvertisingCompleteCallback(
+      [this](NimBLEAdvertising *) { onAdvertisementComplete(); });
 }
 
 void BLEAdvertisingManager::configureHIDAdvertising()
@@ -64,7 +64,7 @@ void BLEAdvertisingManager::startCycle()
   advance();
 }
 
-void BLEAdvertisingManager::advance()
+void BLEAdvertisingManager::onAdvertisementComplete()
 {
   // If we just finished a BTHome broadcast, restore HID advertising data
   // and restart the normal advertising cycle only if it was running before
@@ -86,7 +86,15 @@ void BLEAdvertisingManager::advance()
     }
     return;
   }
+  else
+  {
+    // Normal advertising complete (directed adv timeout, connection, or explicit stop) — step to the next one.
+    advance();
+  }
+}
 
+void BLEAdvertisingManager::advance()
+{
   if (_connections.size() >= _maxConnections)
   {
     if (DEBUG)
@@ -201,13 +209,13 @@ void BLEAdvertisingManager::broadcastBTHomeButtonPress(uint8_t eventType, uint8_
   //              from the first packet lets Home Assistant create all 8 button
   //              entities immediately on discovery.
   // ---------------------------------------------------------------------------
-  static const uint8_t DEVICE_INFO     = 0x44; // v2, trigger-based, no encryption
-  static const uint8_t PACKET_ID_OBJ   = 0x00; // BTHome Packet ID object ID
-  static const uint8_t BUTTON_OBJ_ID   = 0x3A; // BTHome Button object ID
+  static const uint8_t DEVICE_INFO = 0x44;   // v2, trigger-based, no encryption
+  static const uint8_t PACKET_ID_OBJ = 0x00; // BTHome Packet ID object ID
+  static const uint8_t BUTTON_OBJ_ID = 0x3A; // BTHome Button object ID
   // Payload: 1 device-info byte + 1 packet-id object (ID + value) + 8 button objects (ID + value each).
   static const int BTHOME_PAYLOAD_SIZE = 1 + 2 + 8 * 2;
 
-  _btHomePacketId++;  // increment before each new broadcast
+  _btHomePacketId++; // increment before each new broadcast
 
   uint8_t payload[BTHOME_PAYLOAD_SIZE];
   payload[0] = DEVICE_INFO;
@@ -215,7 +223,7 @@ void BLEAdvertisingManager::broadcastBTHomeButtonPress(uint8_t eventType, uint8_
   payload[2] = _btHomePacketId;
   for (int i = 0; i < 8; i++)
   {
-    payload[3 + i * 2]     = BUTTON_OBJ_ID;
+    payload[3 + i * 2] = BUTTON_OBJ_ID;
     payload[3 + i * 2 + 1] = (i == (button - 1)) ? eventType : BTHOME_BUTTON_NONE;
   }
 

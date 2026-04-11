@@ -87,6 +87,8 @@ private:
   // restore the normal HID advertising payload.
   void configureHIDAdvertising();
 
+  void onAdvertisementComplete();
+
   // Total advertising window when at least one connection is already active.
   // Once this budget is spent the cycle stops to save battery.
   static const uint32_t MAX_ADVERTISING_DURATION_AFTER_ALREADY_CONNECTED_MS = 60000;

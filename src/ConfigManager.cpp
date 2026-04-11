@@ -1,4 +1,5 @@
 #include "ConfigManager.h"
+#include "cJSON.h"
 
 const char DEFAULT_BLE_NAME[] = "RemoteKeyboard";
 
@@ -50,48 +51,53 @@ void ConfigManager::_loadKeymap()
     for (int i = 0; i < 8; i++)
     {
       char key[8]; // prefix + up to 2 digits + null
+
+      // Short key
       snprintf(key, sizeof(key), "s%d", i);
       uint8_t v = DEFAULT_SHORT[i];
       if (opened)
         nvs_get_u8(h, key, &v);
-      _short[km][i] = v;
+      _shortEntries[km][i].key = v;
 
+      // Long key
       snprintf(key, sizeof(key), "l%d", i);
       v = DEFAULT_LONG[i];
       if (opened)
         nvs_get_u8(h, key, &v);
-      _long[km][i] = v;
+      _longEntries[km][i].key = v;
 
-      // Target type (new field; default TARGET_SELECT for backward compatibility)
+      // Short target type (new field; default TARGET_SELECT for backward compatibility)
       snprintf(key, sizeof(key), "st%d", i);
       uint8_t tgt = TARGET_SELECT;
       if (opened)
         nvs_get_u8(h, key, &tgt);
       if (tgt > TARGET_BTHOME) tgt = TARGET_SELECT;
-      _shortTgt[km][i] = tgt;
+      _shortEntries[km][i].target = (KeyTarget)tgt;
 
+      // Long target type
       snprintf(key, sizeof(key), "lt%d", i);
       tgt = TARGET_SELECT;
       if (opened)
         nvs_get_u8(h, key, &tgt);
       if (tgt > TARGET_BTHOME) tgt = TARGET_SELECT;
-      _longTgt[km][i] = tgt;
+      _longEntries[km][i].target = (KeyTarget)tgt;
 
-      // HID peer MAC (new field; default empty = broadcast all)
+      // Short HID peer MAC (new field; default empty = broadcast all)
       snprintf(key, sizeof(key), "sm%d", i);
-      _shortMac[km][i][0] = '\0';
+      _shortEntries[km][i].mac[0] = '\0';
       if (opened)
       {
-        size_t macLen = sizeof(_shortMac[km][i]);
-        nvs_get_str(h, key, _shortMac[km][i], &macLen);
+        size_t macLen = sizeof(_shortEntries[km][i].mac);
+        nvs_get_str(h, key, _shortEntries[km][i].mac, &macLen);
       }
 
+      // Long HID peer MAC
       snprintf(key, sizeof(key), "lm%d", i);
-      _longMac[km][i][0] = '\0';
+      _longEntries[km][i].mac[0] = '\0';
       if (opened)
       {
-        size_t macLen = sizeof(_longMac[km][i]);
-        nvs_get_str(h, key, _longMac[km][i], &macLen);
+        size_t macLen = sizeof(_longEntries[km][i].mac);
+        nvs_get_str(h, key, _longEntries[km][i].mac, &macLen);
       }
     }
     if (opened)
@@ -105,8 +111,9 @@ void ConfigManager::_loadKeymap()
       printf("[CONFIG]   Keymap %d:\n", km + 1);
       for (int i = 0; i < 8; i++)
         printf("[CONFIG]     btn%d  short=%d(tgt=%d mac=%s)  long=%d(tgt=%d mac=%s)\n",
-               i + 1, _short[km][i], _shortTgt[km][i], _shortMac[km][i],
-               _long[km][i], _longTgt[km][i], _longMac[km][i]);
+               i + 1,
+               _shortEntries[km][i].key, (int)_shortEntries[km][i].target, _shortEntries[km][i].mac,
+               _longEntries[km][i].key, (int)_longEntries[km][i].target, _longEntries[km][i].mac);
     }
   }
 }
@@ -123,17 +130,17 @@ void ConfigManager::saveKeymap()
     {
       char key[8]; // prefix + up to 2 digits + null
       snprintf(key, sizeof(key), "s%d", i);
-      nvs_set_u8(h, key, _short[km][i]);
+      nvs_set_u8(h, key, _shortEntries[km][i].key);
       snprintf(key, sizeof(key), "l%d", i);
-      nvs_set_u8(h, key, _long[km][i]);
+      nvs_set_u8(h, key, _longEntries[km][i].key);
       snprintf(key, sizeof(key), "st%d", i);
-      nvs_set_u8(h, key, _shortTgt[km][i]);
+      nvs_set_u8(h, key, (uint8_t)_shortEntries[km][i].target);
       snprintf(key, sizeof(key), "lt%d", i);
-      nvs_set_u8(h, key, _longTgt[km][i]);
+      nvs_set_u8(h, key, (uint8_t)_longEntries[km][i].target);
       snprintf(key, sizeof(key), "sm%d", i);
-      nvs_set_str(h, key, _shortMac[km][i]);
+      nvs_set_str(h, key, _shortEntries[km][i].mac);
       snprintf(key, sizeof(key), "lm%d", i);
-      nvs_set_str(h, key, _longMac[km][i]);
+      nvs_set_str(h, key, _longEntries[km][i].mac);
     }
     nvs_commit(h);
     nvs_close(h);
@@ -332,42 +339,20 @@ void ConfigManager::clearClearBondsFlag()
 }
 
 // ---------------------------------------------------------------------------
-// Keymap / BLE name accessors
+// Keymap accessors
 // ---------------------------------------------------------------------------
-uint8_t ConfigManager::getShortKey(int idx) const
+const ConfigManager::KeyEntry& ConfigManager::getShortEntry(int idx) const
 {
+  static const KeyEntry empty{};
   int km = (_activeKeymap >= 1 && _activeKeymap <= 3) ? _activeKeymap - 1 : 0;
-  return (idx >= 0 && idx < 8) ? _short[km][idx] : 0;
+  return (idx >= 0 && idx < 8) ? _shortEntries[km][idx] : empty;
 }
 
-uint8_t ConfigManager::getLongKey(int idx) const
+const ConfigManager::KeyEntry& ConfigManager::getLongEntry(int idx) const
 {
+  static const KeyEntry empty{};
   int km = (_activeKeymap >= 1 && _activeKeymap <= 3) ? _activeKeymap - 1 : 0;
-  return (idx >= 0 && idx < 8) ? _long[km][idx] : 0;
-}
-
-uint8_t ConfigManager::getShortTarget(int idx) const
-{
-  int km = (_activeKeymap >= 1 && _activeKeymap <= 3) ? _activeKeymap - 1 : 0;
-  return (idx >= 0 && idx < 8) ? _shortTgt[km][idx] : TARGET_SELECT;
-}
-
-uint8_t ConfigManager::getLongTarget(int idx) const
-{
-  int km = (_activeKeymap >= 1 && _activeKeymap <= 3) ? _activeKeymap - 1 : 0;
-  return (idx >= 0 && idx < 8) ? _longTgt[km][idx] : TARGET_SELECT;
-}
-
-const char* ConfigManager::getShortMac(int idx) const
-{
-  int km = (_activeKeymap >= 1 && _activeKeymap <= 3) ? _activeKeymap - 1 : 0;
-  return (idx >= 0 && idx < 8) ? _shortMac[km][idx] : "";
-}
-
-const char* ConfigManager::getLongMac(int idx) const
-{
-  int km = (_activeKeymap >= 1 && _activeKeymap <= 3) ? _activeKeymap - 1 : 0;
-  return (idx >= 0 && idx < 8) ? _longMac[km][idx] : "";
+  return (idx >= 0 && idx < 8) ? _longEntries[km][idx] : empty;
 }
 
 int ConfigManager::btnIndex(char key)
@@ -380,8 +365,9 @@ int ConfigManager::btnIndex(char key)
 // ---------------------------------------------------------------------------
 // AP / HTTP server -- config mode
 // ---------------------------------------------------------------------------
-void ConfigManager::beginConfigAP()
+void ConfigManager::beginConfigAP(const std::vector<std::string>& bondList)
 {
+  _bondList   = bondList;
   _exitConfig = false;
 
   // WiFi AP setup
@@ -470,20 +456,6 @@ void ConfigManager::_strTrim(std::string &s)
   size_t e = s.find_last_not_of(" \t\r\n");
   if (e != std::string::npos)
     s.erase(e + 1);
-}
-
-// Wrap s in JSON double-quotes, escaping backslashes and double-quotes.
-std::string ConfigManager::_jsonEscapeStr(const char *s)
-{
-  std::string result = "\"";
-  for (const char *p = s; *p; p++)
-  {
-    if (*p == '"')       result += "\\\"";
-    else if (*p == '\\') result += "\\\\";
-    else                 result += *p;
-  }
-  result += "\"";
-  return result;
 }
 
 // URL-decode a percent-encoded buffer.
@@ -588,110 +560,76 @@ void ConfigManager::_handleRoot(httpd_req_t *req)
   std::string html(reinterpret_cast<const char *>(config_html_start),
                    config_html_end - config_html_start - 1 /* strip null */);
 
-  // Inject keymap values for all 3 keymap slots
-  for (int km = 0; km < 3; km++)
-  {
-    std::string sv, lv;
-    for (int i = 0; i < 8; i++)
-    {
-      if (i)
-      {
-        sv += ',';
-        lv += ',';
-      }
-      sv += std::to_string(_short[km][i]);
-      lv += std::to_string(_long[km][i]);
-    }
-    _strReplace(html, "SHORTVALS" + std::to_string(km + 1), sv);
-    _strReplace(html, "LONGVALS" + std::to_string(km + 1), lv);
-  }
+  // Build a single settings JSON object using cJSON.
+  // The web page reads all values from this object and populates the UI,
+  // so the firmware does no direct HTML string manipulation beyond
+  // replacing the SETTINGSJSON placeholder.
+  cJSON *root = cJSON_CreateObject();
 
-  _strReplace(html, "ACTIVEKEYMAP", std::to_string(_activeKeymap));
+  cJSON_AddStringToObject(root, "fwVer", _firmwareVersion);
+  cJSON_AddStringToObject(root, "bleName", _bleName);
+  cJSON_AddStringToObject(root, "defaultBleName", DEFAULT_BLE_NAME);
+  cJSON_AddBoolToObject(root, "batteryEnabled", _batteryEnabled);
+  cJSON_AddBoolToObject(root, "blePowerSaving", _blePowerSaving);
+  cJSON_AddBoolToObject(root, "batterySection", !LEGACY);
+  cJSON_AddNumberToObject(root, "maxBleConnections", _maxBLEConnections);
+  cJSON_AddNumberToObject(root, "activeKeymap", _activeKeymap);
 
-  std::string dsv, dlv;
+  // Expose target-type constants so JS always stays in sync with the firmware
+  cJSON_AddNumberToObject(root, "TARGET_SELECT", TARGET_SELECT);
+  cJSON_AddNumberToObject(root, "TARGET_HID",    TARGET_HID);
+  cJSON_AddNumberToObject(root, "TARGET_BTHOME", TARGET_BTHOME);
+
+  // Default keymap values (used by Reset to Defaults)
+  cJSON *dsArr = cJSON_CreateArray();
+  cJSON *dlArr = cJSON_CreateArray();
   for (int i = 0; i < 8; i++)
   {
-    if (i)
-    {
-      dsv += ',';
-      dlv += ',';
-    }
-    dsv += std::to_string(DEFAULT_SHORT[i]);
-    dlv += std::to_string(DEFAULT_LONG[i]);
+    cJSON_AddItemToArray(dsArr, cJSON_CreateNumber(DEFAULT_SHORT[i]));
+    cJSON_AddItemToArray(dlArr, cJSON_CreateNumber(DEFAULT_LONG[i]));
   }
-  _strReplace(html, "DEFAULTSHORT", dsv);
-  _strReplace(html, "DEFAULTLONG", dlv);
+  cJSON_AddItemToObject(root, "defaultShort", dsArr);
+  cJSON_AddItemToObject(root, "defaultLong",  dlArr);
 
-  // Escape default BLE name for safe embedding as a JS string literal
-  std::string dbn;
-  for (int i = 0; DEFAULT_BLE_NAME[i]; i++)
-  {
-    char c = DEFAULT_BLE_NAME[i];
-    if (c == '\\')
-      dbn += "\\\\";
-    else if (c == '\'')
-      dbn += "\\'";
-    else
-      dbn += c;
-  }
-  _strReplace(html, "DEFAULTBLENAME", "'" + dbn + "'");
+  // Bond list -- known HID peers for the target selector dropdown
+  cJSON *bondsArr = cJSON_CreateArray();
+  for (const auto &b : _bondList)
+    cJSON_AddItemToArray(bondsArr, cJSON_CreateString(b.c_str()));
+  cJSON_AddItemToObject(root, "bonds", bondsArr);
 
-  // Escape BLE name for safe use in an HTML attribute value
-  std::string bn;
-  for (int i = 0; _bleName[i]; i++)
-  {
-    char c = _bleName[i];
-    if (c == '&')
-      bn += "&amp;";
-    else if (c == '"')
-      bn += "&quot;";
-    else if (c == '<')
-      bn += "&lt;";
-    else if (c == '>')
-      bn += "&gt;";
-    else
-      bn += c;
-  }
-  _strReplace(html, "BLENAME", bn);
-  _strReplace(html, "BATTERYENABLED", _batteryEnabled ? "true" : "false");
-  _strReplace(html, "BLEPOWERSAVING", _blePowerSaving ? "true" : "false");
-  _strReplace(html, "BATTERYSECTIONSTYLE", LEGACY ? "display:none" : "");
-  _strReplace(html, "MAXBLECONNECTIONS", std::to_string(_maxBLEConnections));
-
-  _strReplace(html, "FWVER", std::string(_firmwareVersion));
-
-  // Build the target-data JSON object (bond list + per-button target settings).
-  // Placed as a JS variable so the minifier leaves the placeholder intact.
-  std::string tgtJson = "{\"bonds\":[";
-  for (size_t b = 0; b < _bondList.size(); b++)
-  {
-    if (b) tgtJson += ",";
-    tgtJson += _jsonEscapeStr(_bondList[b].c_str());
-  }
-  tgtJson += "],\"km\":[";
+  // Per-keymap button data (keys + target types + MACs)
+  cJSON *kmArr = cJSON_CreateArray();
   for (int km = 0; km < 3; km++)
   {
-    if (km) tgtJson += ",";
-    tgtJson += "{\"ST\":[";
-    for (int i = 0; i < 8; i++) { if (i) tgtJson += ","; tgtJson += std::to_string(_shortTgt[km][i]); }
-    tgtJson += "],\"SM\":[";
+    cJSON *kmObj = cJSON_CreateObject();
+    cJSON *sArr  = cJSON_CreateArray(), *lArr  = cJSON_CreateArray();
+    cJSON *stArr = cJSON_CreateArray(), *ltArr = cJSON_CreateArray();
+    cJSON *smArr = cJSON_CreateArray(), *lmArr = cJSON_CreateArray();
     for (int i = 0; i < 8; i++)
     {
-      if (i) tgtJson += ",";
-      tgtJson += _jsonEscapeStr(_shortMac[km][i]);
+      cJSON_AddItemToArray(sArr,  cJSON_CreateNumber(_shortEntries[km][i].key));
+      cJSON_AddItemToArray(lArr,  cJSON_CreateNumber(_longEntries[km][i].key));
+      cJSON_AddItemToArray(stArr, cJSON_CreateNumber((uint8_t)_shortEntries[km][i].target));
+      cJSON_AddItemToArray(ltArr, cJSON_CreateNumber((uint8_t)_longEntries[km][i].target));
+      cJSON_AddItemToArray(smArr, cJSON_CreateString(_shortEntries[km][i].mac));
+      cJSON_AddItemToArray(lmArr, cJSON_CreateString(_longEntries[km][i].mac));
     }
-    tgtJson += "],\"LT\":[";
-    for (int i = 0; i < 8; i++) { if (i) tgtJson += ","; tgtJson += std::to_string(_longTgt[km][i]); }
-    tgtJson += "],\"LM\":[";
-    for (int i = 0; i < 8; i++)
-    {
-      if (i) tgtJson += ",";
-      tgtJson += _jsonEscapeStr(_longMac[km][i]);
-    }
-    tgtJson += "]}";
+    cJSON_AddItemToObject(kmObj, "S",  sArr);
+    cJSON_AddItemToObject(kmObj, "L",  lArr);
+    cJSON_AddItemToObject(kmObj, "ST", stArr);
+    cJSON_AddItemToObject(kmObj, "LT", ltArr);
+    cJSON_AddItemToObject(kmObj, "SM", smArr);
+    cJSON_AddItemToObject(kmObj, "LM", lmArr);
+    cJSON_AddItemToArray(kmArr, kmObj);
   }
-  tgtJson += "]}";
-  _strReplace(html, "TARGETDATAJSON", tgtJson);
+  cJSON_AddItemToObject(root, "km", kmArr);
+
+  char *json = cJSON_PrintUnformatted(root);
+  cJSON_Delete(root);
+
+  _strReplace(html, "SETTINGSJSON", json ? std::string(json) : std::string("{}"));
+  if (json)
+    cJSON_free(json);
 
   httpd_resp_set_type(req, "text/html");
   httpd_resp_send(req, html.c_str(), (ssize_t)html.size());
@@ -715,9 +653,9 @@ void ConfigManager::_handleSave(httpd_req_t *req)
       std::string sv = _formParam(body.c_str(), (std::string("s") + si).c_str());
       std::string lv = _formParam(body.c_str(), (std::string("l") + si).c_str());
       if (!sv.empty())
-        _short[km][i] = (uint8_t)atoi(sv.c_str());
+        _shortEntries[km][i].key = (uint8_t)atoi(sv.c_str());
       if (!lv.empty())
-        _long[km][i] = (uint8_t)atoi(lv.c_str());
+        _longEntries[km][i].key = (uint8_t)atoi(lv.c_str());
 
       // Parse target for short press: "0"=select, "1:"=HID broadcast,
       // "1:AA:BB:CC:DD:EE:FF"=HID specific, "2"=BTHome
@@ -726,21 +664,21 @@ void ConfigManager::_handleSave(httpd_req_t *req)
       {
         if (tsv[0] == '1')
         {
-          _shortTgt[km][i] = TARGET_HID;
-          // Format: "1:<mac>" — skip the "1:" prefix (2 chars) to get the MAC
+          _shortEntries[km][i].target = TARGET_HID;
+          // Format: "1:<mac>" -- skip the "1:" prefix (2 chars) to get the MAC
           std::string m = (tsv.size() > 2) ? tsv.substr(2) : "";
-          strncpy(_shortMac[km][i], m.c_str(), sizeof(_shortMac[km][i]) - 1);
-          _shortMac[km][i][sizeof(_shortMac[km][i]) - 1] = '\0';
+          strncpy(_shortEntries[km][i].mac, m.c_str(), sizeof(_shortEntries[km][i].mac) - 1);
+          _shortEntries[km][i].mac[sizeof(_shortEntries[km][i].mac) - 1] = '\0';
         }
         else if (tsv[0] == '2')
         {
-          _shortTgt[km][i] = TARGET_BTHOME;
-          _shortMac[km][i][0] = '\0';
+          _shortEntries[km][i].target = TARGET_BTHOME;
+          _shortEntries[km][i].mac[0] = '\0';
         }
         else
         {
-          _shortTgt[km][i] = TARGET_SELECT;
-          _shortMac[km][i][0] = '\0';
+          _shortEntries[km][i].target = TARGET_SELECT;
+          _shortEntries[km][i].mac[0] = '\0';
         }
       }
 
@@ -750,21 +688,21 @@ void ConfigManager::_handleSave(httpd_req_t *req)
       {
         if (tlv[0] == '1')
         {
-          _longTgt[km][i] = TARGET_HID;
-          // Format: "1:<mac>" — skip the "1:" prefix (2 chars) to get the MAC
+          _longEntries[km][i].target = TARGET_HID;
+          // Format: "1:<mac>" -- skip the "1:" prefix (2 chars) to get the MAC
           std::string m = (tlv.size() > 2) ? tlv.substr(2) : "";
-          strncpy(_longMac[km][i], m.c_str(), sizeof(_longMac[km][i]) - 1);
-          _longMac[km][i][sizeof(_longMac[km][i]) - 1] = '\0';
+          strncpy(_longEntries[km][i].mac, m.c_str(), sizeof(_longEntries[km][i].mac) - 1);
+          _longEntries[km][i].mac[sizeof(_longEntries[km][i].mac) - 1] = '\0';
         }
         else if (tlv[0] == '2')
         {
-          _longTgt[km][i] = TARGET_BTHOME;
-          _longMac[km][i][0] = '\0';
+          _longEntries[km][i].target = TARGET_BTHOME;
+          _longEntries[km][i].mac[0] = '\0';
         }
         else
         {
-          _longTgt[km][i] = TARGET_SELECT;
-          _longMac[km][i][0] = '\0';
+          _longEntries[km][i].target = TARGET_SELECT;
+          _longEntries[km][i].mac[0] = '\0';
         }
       }
     }

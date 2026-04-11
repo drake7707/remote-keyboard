@@ -40,10 +40,19 @@ public:
   static const uint8_t DEFAULT_SHORT[8];
   static const uint8_t DEFAULT_LONG[8];
 
-  // Per-key target type constants
-  static const uint8_t TARGET_SELECT = 0; // use the runtime target selector
-  static const uint8_t TARGET_HID    = 1; // send to a specific HID peer (or broadcast)
-  static const uint8_t TARGET_BTHOME = 2; // broadcast a BTHome advertisement
+  // Per-key target type
+  enum KeyTarget : uint8_t {
+    TARGET_SELECT = 0, // use the runtime target selector
+    TARGET_HID    = 1, // send to a specific HID peer (or broadcast)
+    TARGET_BTHOME = 2  // broadcast a BTHome advertisement
+  };
+
+  // One button action (short or long press)
+  struct KeyEntry {
+    uint8_t   key    = 0;
+    KeyTarget target = TARGET_SELECT;
+    char      mac[18] = {}; // HID peer MAC ("" = broadcast all)
+  };
 
   // Inject the StatusLedManager so web handlers can signal progress via LED,
   // and the firmware version string to display in the web config UI.
@@ -90,28 +99,21 @@ public:
   void clearClearBondsFlag();
 
   // ---------------------------------------------------------------------------
-  // Keymap / BLE name accessors
+  // Keymap accessors -- returns the short/long press entry for the active keymap
   // ---------------------------------------------------------------------------
-  uint8_t     getShortKey(int idx)    const;
-  uint8_t     getLongKey(int idx)     const;
-  uint8_t     getShortTarget(int idx) const;
-  uint8_t     getLongTarget(int idx)  const;
-  const char* getShortMac(int idx)    const;
-  const char* getLongMac(int idx)     const;
-  const char* getBleName()            const { return _bleName; }
+  const KeyEntry& getShortEntry(int idx) const;
+  const KeyEntry& getLongEntry(int idx)  const;
+  const char*     getBleName()           const { return _bleName; }
 
   static int btnIndex(char key);
 
   // ---------------------------------------------------------------------------
-  // Bond list -- injected from main before config AP starts so the web UI
-  // can offer the list of known peers as HID target options.
-  // ---------------------------------------------------------------------------
-  void setBondList(const std::vector<std::string>& bonds) { _bondList = bonds; }
-
-  // ---------------------------------------------------------------------------
   // AP / HTTP server -- config mode
   // ---------------------------------------------------------------------------
-  void beginConfigAP();
+
+  // Bond list is passed here (collected from BLEManager before BLE is stopped)
+  // so the web UI can offer known peers as HID target options.
+  void beginConfigAP(const std::vector<std::string>& bondList);
   void handleClient() {}
   void endConfigAP();
 
@@ -122,13 +124,9 @@ private:
   StatusLedManager* _led          = nullptr;
   bool              _exitConfig   = false;
   char              _firmwareVersion[32] = {};
-  uint8_t           _short[3][8]  = {};
-  uint8_t           _long[3][8]   = {};
-  uint8_t           _shortTgt[3][8] = {};          // TARGET_SELECT / TARGET_HID / TARGET_BTHOME
-  uint8_t           _longTgt[3][8]  = {};
-  char              _shortMac[3][8][18] = {};       // HID peer MAC ("" = broadcast all)
-  char              _longMac[3][8][18]  = {};
-  std::vector<std::string> _bondList;               // bond list injected before config AP
+  KeyEntry          _shortEntries[3][8]  = {};
+  KeyEntry          _longEntries[3][8]   = {};
+  std::vector<std::string> _bondList;    // populated at AP start
   int               _activeKeymap = 1;
   bool              _batteryEnabled = false;
   bool              _blePowerSaving = false;
@@ -157,7 +155,6 @@ private:
   static std::string _urlDecode(const char* src, size_t len);
   static std::string _formParam(const char* body, const char* name);
   static bool        _readBody(httpd_req_t* req, std::string& out);
-  static std::string _jsonEscapeStr(const char* s); // wrap s in JSON double-quotes with escaping
 
   // ---------------------------------------------------------------------------
   // Static trampoline handlers (httpd requires plain function pointers)

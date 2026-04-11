@@ -28,8 +28,11 @@ void BLEAdvertisingManager::configureHIDAdvertising()
   NimBLEAdvertisementData advData;
   // 0x06 = LE General Discoverable Mode | BR/EDR Not Supported
   advData.setFlags(0x06);
-  // Appearance: HID Keyboard (0x03C1).  Raw AD structure: len=3, type=0x19,
-  // value in little-endian.
+  // Appearance: HID Keyboard (0x03C1).  Full AD structure layout:
+  //   [0x03]  length  = 3 bytes follow (type + 2-byte value)
+  //   [0x19]  type    = Appearance
+  //   [0xC1]  value LSB of 0x03C1 (HID Keyboard appearance)
+  //   [0x03]  value MSB of 0x03C1
   uint8_t appearance[] = {0x03, 0x19, 0xC1, 0x03};
   advData.addData(appearance, sizeof(appearance));
   advData.addServiceUUID(_hid->getHidService()->getUUID());

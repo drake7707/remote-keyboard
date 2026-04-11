@@ -222,6 +222,11 @@ void on_short_press(char btn)
   if (idx < 0)
     return;
 
+  // Always broadcast a BTHome button-press event so Home Assistant can detect
+  // the button regardless of whether a HID key action is configured.
+  bleManager.getAdvertisingManager().broadcastBTHomeButtonPress(
+      BLEAdvertisingManager::BTHOME_BUTTON_PRESS, idx + 1);
+
   uint8_t shortKey = configManager.getShortKey(idx);
   if (shortKey == 0)
     return;
@@ -260,6 +265,10 @@ void on_long_press(char btn)
 
   if (DEBUG)
     printf("[MAIN] Long press: %c -> key=0x%02X (%d) to target %s\n", btn, longKey, longKey, currentTarget == "" ? "BROADCAST" : currentTarget.c_str());
+
+  // Always broadcast a BTHome long-press event so Home Assistant can detect it.
+  bleManager.getAdvertisingManager().broadcastBTHomeButtonPress(
+      BLEAdvertisingManager::BTHOME_BUTTON_LONG_PRESS, idx + 1);
 
   if (bleManager.isConnected())
   {

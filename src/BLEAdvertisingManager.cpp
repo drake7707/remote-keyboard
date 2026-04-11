@@ -6,22 +6,40 @@ BLEAdvertisingManager::BLEAdvertisingManager(const std::map<std::string, uint16_
 void BLEAdvertisingManager::begin(NimBLEHIDDevice *hid, const char *deviceName, uint8_t maxConnections)
 {
   _maxConnections = maxConnections;
+  _hid = hid;
+  _deviceName = deviceName;
 
-  NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
-  adv->setAppearance(HID_KEYBOARD);
-  adv->addServiceUUID(hid->getHidService()->getUUID());
-
-  // Include device name in scan response so Android/Windows show it in
-  // the pairing list and recognise it as a keyboard.
-  NimBLEAdvertisementData scanData;
-  scanData.setName(deviceName);
-  adv->setScanResponseData(scanData);
+  configureHIDAdvertising();
 
   // When advertising ends (directed timeout, connection, or explicit stop)
   // NimBLE fires this callback — we use it to step to the next bond or fall
   // back to undirected advertising.
-  adv->setAdvertisingCompleteCallback([this](NimBLEAdvertising *)
-                                      { advance(); });
+  NimBLEDevice::getAdvertising()->setAdvertisingCompleteCallback(
+      [this](NimBLEAdvertising *) { advance(); });
+}
+
+void BLEAdvertisingManager::configureHIDAdvertising()
+{
+  NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
+
+  // Build the primary advertisement payload explicitly so we can switch
+  // back to it cleanly after a BTHome broadcast (NimBLE has no public API
+  // to clear custom advertisement data once set).
+  NimBLEAdvertisementData advData;
+  // 0x06 = LE General Discoverable Mode | BR/EDR Not Supported
+  advData.setFlags(0x06);
+  // Appearance: HID Keyboard (0x03C1).  Raw AD structure: len=3, type=0x19,
+  // value in little-endian.
+  uint8_t appearance[] = {0x03, 0x19, 0xC1, 0x03};
+  advData.addData(appearance, sizeof(appearance));
+  advData.addServiceUUID(_hid->getHidService()->getUUID());
+  adv->setAdvertisementData(advData);
+
+  // Include device name in scan response so Android/Windows show it in
+  // the pairing list and recognise it as a keyboard.
+  NimBLEAdvertisementData scanData;
+  scanData.setName(_deviceName);
+  adv->setScanResponseData(scanData);
 }
 
 void BLEAdvertisingManager::startCycle()
@@ -45,6 +63,18 @@ void BLEAdvertisingManager::startCycle()
 
 void BLEAdvertisingManager::advance()
 {
+  // If we just finished a BTHome broadcast, restore HID advertising data
+  // and restart the normal advertising cycle.
+  if (_btHomeBroadcastActive)
+  {
+    _btHomeBroadcastActive = false;
+    configureHIDAdvertising();
+    if (DEBUG)
+      printf("[BLE ADV] BTHome broadcast complete, restarting HID advertising cycle\n");
+    startCycle();
+    return;
+  }
+
   if (_connections.size() >= _maxConnections)
   {
     if (DEBUG)
@@ -113,4 +143,63 @@ void BLEAdvertisingManager::advance()
 bool BLEAdvertisingManager::isAdvertising()
 {
   return NimBLEDevice::getAdvertising()->isAdvertising();
+}
+
+void BLEAdvertisingManager::broadcastBTHomeButtonPress(uint8_t eventType, uint8_t button)
+{
+  if (button < 1 || button > 8)
+  {
+    if (DEBUG)
+      printf("[BLE ADV] BTHome: invalid button %d (must be 1–8)\n", button);
+    return;
+  }
+
+  NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
+
+  if (adv->isAdvertising())
+    adv->stop();
+
+  // ---------------------------------------------------------------------------
+  // BTHome v2 service data payload
+  //
+  // Byte 0   — device info: version=2, trigger-based=1, no encryption → 0x44
+  //              bit 0   : encryption (0 = none)
+  //              bit 1–1 : reserved
+  //              bit 2   : trigger-based device (1 = event/trigger)
+  //              bit 3–4 : reserved
+  //              bit 5–7 : BTHome version (010 = v2)
+  //
+  // Bytes 1–16 — 8 × Button object (object ID 0x3A, 1-byte value)
+  //              Only the slot for the pressed button carries a non-zero event;
+  //              all other slots carry 0x00 (None).  Advertising all 8 slots
+  //              from the first packet lets Home Assistant create all 8 button
+  //              entities immediately on discovery.
+  // ---------------------------------------------------------------------------
+  static const uint8_t DEVICE_INFO   = 0x44; // v2, trigger-based, no encryption
+  static const uint8_t BUTTON_OBJ_ID = 0x3A; // BTHome Button object ID
+
+  uint8_t payload[1 + 8 * 2];
+  payload[0] = DEVICE_INFO;
+  for (int i = 0; i < 8; i++)
+  {
+    payload[1 + i * 2]     = BUTTON_OBJ_ID;
+    payload[1 + i * 2 + 1] = (i == (button - 1)) ? eventType : BTHOME_BUTTON_NONE;
+  }
+
+  // BTHome uses 16-bit service data UUID 0xFCD2.
+  NimBLEAdvertisementData btHomeData;
+  btHomeData.setServiceData(NimBLEUUID((uint16_t)0xFCD2),
+                            std::string(reinterpret_cast<char *>(payload), sizeof(payload)));
+  adv->setAdvertisementData(btHomeData);
+
+  // Clear scan response for the BTHome broadcast — HA needs only the service data.
+  adv->setScanResponseData(NimBLEAdvertisementData());
+
+  _btHomeBroadcastActive = true;
+
+  if (DEBUG)
+    printf("[BLE ADV] BTHome: broadcasting button %d event 0x%02X for %lu ms\n",
+           button, eventType, BTHOME_BROADCAST_DURATION_MS);
+
+  adv->start(BTHOME_BROADCAST_DURATION_MS);
 }

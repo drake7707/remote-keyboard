@@ -40,7 +40,24 @@ public:
 
   bool isAdvertising();
 
-  
+  // BTHome v2 button event types (object ID 0x3A).
+  // See https://bthome.io/format/ for the full list.
+  static const uint8_t BTHOME_BUTTON_NONE         = 0x00;
+  static const uint8_t BTHOME_BUTTON_PRESS        = 0x01;
+  static const uint8_t BTHOME_BUTTON_DOUBLE_PRESS = 0x02;
+  static const uint8_t BTHOME_BUTTON_TRIPLE_PRESS = 0x03;
+  static const uint8_t BTHOME_BUTTON_LONG_PRESS   = 0x04;
+  static const uint8_t BTHOME_BUTTON_LONG_DOUBLE  = 0x05;
+  static const uint8_t BTHOME_BUTTON_LONG_TRIPLE  = 0x06;
+
+  // Send a compliant BTHome v2 advertisement for the given button (1–8) and
+  // event type (one of the BTHOME_BUTTON_* constants above).
+  //
+  // The advertisement is trigger-based (device info 0x44) and contains one
+  // Button object (0x3A) per button slot; only the active button slot carries
+  // a non-zero event value.  Any ongoing HID advertising cycle is paused for
+  // the duration of the broadcast (~200 ms) and then restarted automatically.
+  void broadcastBTHomeButtonPress(uint8_t eventType, uint8_t button);
 
 private:
   const std::map<std::string, uint16_t> &_connections;
@@ -48,10 +65,19 @@ private:
   int _nextBondIdx = 0;
   uint32_t _advertisingCycleStartMs = 0;
 
+  NimBLEHIDDevice *_hid = nullptr;
+  std::string _deviceName;
+  bool _btHomeBroadcastActive = false;
+
   // Advance to the next advertising step.
   void advance();
 
-    // Total advertising window when at least one connection is already active.
+  // (Re-)configure the NimBLEAdvertising object with HID keyboard advertisement
+  // data.  Called once from begin() and again after every BTHome broadcast to
+  // restore the normal HID advertising payload.
+  void configureHIDAdvertising();
+
+  // Total advertising window when at least one connection is already active.
   // Once this budget is spent the cycle stops to save battery.
   static const uint32_t MAX_ADVERTISING_DURATION_AFTER_ALREADY_CONNECTED_MS = 60000;
 
@@ -60,4 +86,7 @@ private:
   // so NimBLE always fires the advertising-complete callback before we attempt
   // to start the next step.
   static const uint32_t DIRECTED_ADV_STEP_DURATION_MS = 1500;
+
+  // Duration of a single BTHome broadcast in milliseconds.
+  static const uint32_t BTHOME_BROADCAST_DURATION_MS = 200;
 };

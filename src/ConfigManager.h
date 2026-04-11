@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <string>
 #include <algorithm>
+#include <vector>
 #include <nvs_flash.h>
 #include <nvs.h>
 #include <esp_wifi.h>
@@ -38,6 +39,11 @@ public:
   // Factory defaults -- mirror the original hard-coded behaviour
   static const uint8_t DEFAULT_SHORT[8];
   static const uint8_t DEFAULT_LONG[8];
+
+  // Per-key target type constants
+  static const uint8_t TARGET_SELECT = 0; // use the runtime target selector
+  static const uint8_t TARGET_HID    = 1; // send to a specific HID peer (or broadcast)
+  static const uint8_t TARGET_BTHOME = 2; // broadcast a BTHome advertisement
 
   // Inject the StatusLedManager so web handlers can signal progress via LED,
   // and the firmware version string to display in the web config UI.
@@ -86,11 +92,21 @@ public:
   // ---------------------------------------------------------------------------
   // Keymap / BLE name accessors
   // ---------------------------------------------------------------------------
-  uint8_t     getShortKey(int idx) const;
-  uint8_t     getLongKey(int idx)  const;
-  const char* getBleName()         const { return _bleName; }
+  uint8_t     getShortKey(int idx)    const;
+  uint8_t     getLongKey(int idx)     const;
+  uint8_t     getShortTarget(int idx) const;
+  uint8_t     getLongTarget(int idx)  const;
+  const char* getShortMac(int idx)    const;
+  const char* getLongMac(int idx)     const;
+  const char* getBleName()            const { return _bleName; }
 
   static int btnIndex(char key);
+
+  // ---------------------------------------------------------------------------
+  // Bond list -- injected from main before config AP starts so the web UI
+  // can offer the list of known peers as HID target options.
+  // ---------------------------------------------------------------------------
+  void setBondList(const std::vector<std::string>& bonds) { _bondList = bonds; }
 
   // ---------------------------------------------------------------------------
   // AP / HTTP server -- config mode
@@ -108,6 +124,11 @@ private:
   char              _firmwareVersion[32] = {};
   uint8_t           _short[3][8]  = {};
   uint8_t           _long[3][8]   = {};
+  uint8_t           _shortTgt[3][8] = {};          // TARGET_SELECT / TARGET_HID / TARGET_BTHOME
+  uint8_t           _longTgt[3][8]  = {};
+  char              _shortMac[3][8][18] = {};       // HID peer MAC ("" = broadcast all)
+  char              _longMac[3][8][18]  = {};
+  std::vector<std::string> _bondList;               // bond list injected before config AP
   int               _activeKeymap = 1;
   bool              _batteryEnabled = false;
   bool              _blePowerSaving = false;

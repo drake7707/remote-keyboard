@@ -236,6 +236,7 @@
            { S: [SHORTVALS3], L: [LONGVALS3] }
          ];
          var curKm = ACTIVEKEYMAP;
+         var TGTDATA = TARGETDATAJSON;
          // Key options: [code, label]
          var K = [
            [43, '+'], [45, '-'], [42, '*'], [47, '/'], [61, '='],
@@ -253,7 +254,7 @@
          ];
          for (var i = 97; i <= 122; i++) K.push([i, String.fromCharCode(i)]); // a-z
          for (var i = 48; i <= 57; i++)  K.push([i, String.fromCharCode(i)]); // 0-9
-         
+
          function buildOpts(cur, withRepeat) {
            var h = '';
            if (withRepeat)
@@ -264,24 +265,65 @@
            });
            return h;
          }
-         
+
+         // Build <option> elements for a target <select>.
+         // type: 0=select-with-selector, 1=HID keyboard, 2=BT Home broadcast
+         // mac: "" (broadcast all) or "aa:bb:cc:dd:ee:ff" (specific peer)
+         function buildTargetOpts(type, mac) {
+           var h = '<option value="0"' + (type === 0 ? ' selected' : '') + '>Select with target selector</option>';
+           h += '<option value="1:"' + (type === 1 && mac === '' ? ' selected' : '') + '>HID: Broadcast to all</option>';
+           TGTDATA.bonds.forEach(function (b) {
+             h += '<option value="1:' + b + '"' + (type === 1 && mac === b ? ' selected' : '') + '>HID: ' + b + '</option>';
+           });
+           h += '<option value="2"' + (type === 2 ? ' selected' : '') + '>BT Home broadcast</option>';
+           return h;
+         }
+
+         // Toggle visibility of the key selector linked to a target selector.
+         // When BT Home is selected the key selector is hidden (no key needed).
+         function onTgtChange(sel) {
+           var kid = sel.getAttribute('data-key');
+           if (kid) {
+             var k = document.getElementById(kid);
+             if (k) k.style.display = sel.value === '2' ? 'none' : '';
+           }
+         }
+
          for (var km = 1; km <= 3; km++) {
            var tbody = document.getElementById('rows' + km);
            var S = KM[km - 1].S, L = KM[km - 1].L;
+           var ST = TGTDATA.km[km - 1].ST, SM = TGTDATA.km[km - 1].SM;
+           var LT = TGTDATA.km[km - 1].LT, LM = TGTDATA.km[km - 1].LM;
            for (var i = 0; i < 8; i++) {
              var tr = document.createElement('tr');
-             // Button 4 (index 3) long press is reserved -- show as disabled info cell
-             var longCell = (i === 3)
-               ? '<td><em style="color:#999">reserved (config trigger)</em><input type="hidden" name="l' + km + '_3" value="' + L[3] + '"></td>'
-               : '<td><select name="l' + km + '_' + i + '">' + buildOpts(L[i], true) + '</select></td>';
+             // Short press cell: key selector + target selector (all buttons)
+             var ks_id = 'ks_' + km + '_' + i;
+             var shortCell = '<td>'
+               + '<select id="' + ks_id + '" name="s' + km + '_' + i + '"' + (ST[i] === 2 ? ' style="display:none"' : '') + '>' + buildOpts(S[i], false) + '</select>'
+               + '<br><select name="ts' + km + '_' + i + '" data-key="' + ks_id + '" onchange="onTgtChange(this)">' + buildTargetOpts(ST[i], SM[i]) + '</select>'
+               + '</td>';
+             // Long press cell
+             var longCell;
+             if (i === 3) {
+               // Button 4 (index 3) long press is reserved -- show as disabled info cell
+               longCell = '<td><em style="color:#999">reserved (config trigger)</em>'
+                 + '<input type="hidden" name="l' + km + '_3" value="' + L[3] + '">'
+                 + '<input type="hidden" name="tl' + km + '_3" value="0"></td>';
+             } else {
+               var kl_id = 'kl_' + km + '_' + i;
+               longCell = '<td>'
+                 + '<select id="' + kl_id + '" name="l' + km + '_' + i + '"' + (LT[i] === 2 ? ' style="display:none"' : '') + '>' + buildOpts(L[i], true) + '</select>'
+                 + '<br><select name="tl' + km + '_' + i + '" data-key="' + kl_id + '" onchange="onTgtChange(this)">' + buildTargetOpts(LT[i], LM[i]) + '</select>'
+                 + '</td>';
+             }
              tr.innerHTML =
                '<td><strong>Button ' + (i + 1) + '</strong></td>' +
-               '<td><select name="s' + km + '_' + i + '">' + buildOpts(S[i], false) + '</select></td>' +
+               shortCell +
                longCell;
              tbody.appendChild(tr);
            }
          }
-         
+
          function showKm(n) {
            document.getElementById('km' + curKm).style.display = 'none';
            document.getElementById('tab' + curKm).className = 'tab';
@@ -290,13 +332,17 @@
            document.getElementById('tab' + curKm).className = 'tab active';
          }
          showKm(curKm);
-         
+
          function resetToDefaults() {
            var rows = document.getElementById('rows' + curKm).rows;
            for (var i = 0; i < 8; i++) {
              var sels = rows[i].querySelectorAll('select');
+             // Order per row: short-key, short-target, [long-key, long-target]
+             // (button 4 has no long selects -- only short-key and short-target)
              if (sels[0]) sels[0].value = DS[i];
-             if (sels[1]) sels[1].value = DL[i];
+             if (sels[1]) { sels[1].value = '0'; onTgtChange(sels[1]); }
+             if (sels[2]) sels[2].value = DL[i];
+             if (sels[3]) { sels[3].value = '0'; onTgtChange(sels[3]); }
            }
            document.getElementById('blename').value = DEFAULTBLENAME;
          }

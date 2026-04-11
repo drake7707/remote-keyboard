@@ -49,7 +49,7 @@ void ConfigManager::_loadKeymap()
     bool opened = (nvs_open(namespaces[km], NVS_READONLY, &h) == ESP_OK);
     for (int i = 0; i < 8; i++)
     {
-      char key[8]; // "s"/"l" + up to 3 digits + null
+      char key[8]; // prefix + up to 2 digits + null
       snprintf(key, sizeof(key), "s%d", i);
       uint8_t v = DEFAULT_SHORT[i];
       if (opened)
@@ -61,6 +61,38 @@ void ConfigManager::_loadKeymap()
       if (opened)
         nvs_get_u8(h, key, &v);
       _long[km][i] = v;
+
+      // Target type (new field; default TARGET_SELECT for backward compatibility)
+      snprintf(key, sizeof(key), "st%d", i);
+      uint8_t tgt = TARGET_SELECT;
+      if (opened)
+        nvs_get_u8(h, key, &tgt);
+      if (tgt > TARGET_BTHOME) tgt = TARGET_SELECT;
+      _shortTgt[km][i] = tgt;
+
+      snprintf(key, sizeof(key), "lt%d", i);
+      tgt = TARGET_SELECT;
+      if (opened)
+        nvs_get_u8(h, key, &tgt);
+      if (tgt > TARGET_BTHOME) tgt = TARGET_SELECT;
+      _longTgt[km][i] = tgt;
+
+      // HID peer MAC (new field; default empty = broadcast all)
+      snprintf(key, sizeof(key), "sm%d", i);
+      _shortMac[km][i][0] = '\0';
+      if (opened)
+      {
+        size_t macLen = sizeof(_shortMac[km][i]);
+        nvs_get_str(h, key, _shortMac[km][i], &macLen);
+      }
+
+      snprintf(key, sizeof(key), "lm%d", i);
+      _longMac[km][i][0] = '\0';
+      if (opened)
+      {
+        size_t macLen = sizeof(_longMac[km][i]);
+        nvs_get_str(h, key, _longMac[km][i], &macLen);
+      }
     }
     if (opened)
       nvs_close(h);
@@ -72,7 +104,9 @@ void ConfigManager::_loadKeymap()
     {
       printf("[CONFIG]   Keymap %d:\n", km + 1);
       for (int i = 0; i < 8; i++)
-        printf("[CONFIG]     btn%d  short=%d  long=%d\n", i + 1, _short[km][i], _long[km][i]);
+        printf("[CONFIG]     btn%d  short=%d(tgt=%d mac=%s)  long=%d(tgt=%d mac=%s)\n",
+               i + 1, _short[km][i], _shortTgt[km][i], _shortMac[km][i],
+               _long[km][i], _longTgt[km][i], _longMac[km][i]);
     }
   }
 }
@@ -87,11 +121,19 @@ void ConfigManager::saveKeymap()
       continue;
     for (int i = 0; i < 8; i++)
     {
-      char key[8]; // "s"/"l" + up to 3 digits + null
+      char key[8]; // prefix + up to 2 digits + null
       snprintf(key, sizeof(key), "s%d", i);
       nvs_set_u8(h, key, _short[km][i]);
       snprintf(key, sizeof(key), "l%d", i);
       nvs_set_u8(h, key, _long[km][i]);
+      snprintf(key, sizeof(key), "st%d", i);
+      nvs_set_u8(h, key, _shortTgt[km][i]);
+      snprintf(key, sizeof(key), "lt%d", i);
+      nvs_set_u8(h, key, _longTgt[km][i]);
+      snprintf(key, sizeof(key), "sm%d", i);
+      nvs_set_str(h, key, _shortMac[km][i]);
+      snprintf(key, sizeof(key), "lm%d", i);
+      nvs_set_str(h, key, _longMac[km][i]);
     }
     nvs_commit(h);
     nvs_close(h);
@@ -302,6 +344,30 @@ uint8_t ConfigManager::getLongKey(int idx) const
 {
   int km = (_activeKeymap >= 1 && _activeKeymap <= 3) ? _activeKeymap - 1 : 0;
   return (idx >= 0 && idx < 8) ? _long[km][idx] : 0;
+}
+
+uint8_t ConfigManager::getShortTarget(int idx) const
+{
+  int km = (_activeKeymap >= 1 && _activeKeymap <= 3) ? _activeKeymap - 1 : 0;
+  return (idx >= 0 && idx < 8) ? _shortTgt[km][idx] : TARGET_SELECT;
+}
+
+uint8_t ConfigManager::getLongTarget(int idx) const
+{
+  int km = (_activeKeymap >= 1 && _activeKeymap <= 3) ? _activeKeymap - 1 : 0;
+  return (idx >= 0 && idx < 8) ? _longTgt[km][idx] : TARGET_SELECT;
+}
+
+const char* ConfigManager::getShortMac(int idx) const
+{
+  int km = (_activeKeymap >= 1 && _activeKeymap <= 3) ? _activeKeymap - 1 : 0;
+  return (idx >= 0 && idx < 8) ? _shortMac[km][idx] : "";
+}
+
+const char* ConfigManager::getLongMac(int idx) const
+{
+  int km = (_activeKeymap >= 1 && _activeKeymap <= 3) ? _activeKeymap - 1 : 0;
+  return (idx >= 0 && idx < 8) ? _longMac[km][idx] : "";
 }
 
 int ConfigManager::btnIndex(char key)
@@ -580,6 +646,53 @@ void ConfigManager::_handleRoot(httpd_req_t *req)
 
   _strReplace(html, "FWVER", std::string(_firmwareVersion));
 
+  // Build the target-data JSON object (bond list + per-button target settings).
+  // Placed as a JS variable so the minifier leaves the placeholder intact.
+  std::string tgtJson = "{\"bonds\":[";
+  for (size_t b = 0; b < _bondList.size(); b++)
+  {
+    if (b) tgtJson += ",";
+    tgtJson += "\"" + _bondList[b] + "\"";
+  }
+  tgtJson += "],\"km\":[";
+  for (int km = 0; km < 3; km++)
+  {
+    if (km) tgtJson += ",";
+    tgtJson += "{\"ST\":[";
+    for (int i = 0; i < 8; i++) { if (i) tgtJson += ","; tgtJson += std::to_string(_shortTgt[km][i]); }
+    tgtJson += "],\"SM\":[";
+    for (int i = 0; i < 8; i++)
+    {
+      if (i) tgtJson += ",";
+      tgtJson += "\"";
+      for (const char *p = _shortMac[km][i]; *p; p++)
+      {
+        if (*p == '"') tgtJson += "\\\"";
+        else if (*p == '\\') tgtJson += "\\\\";
+        else tgtJson += *p;
+      }
+      tgtJson += "\"";
+    }
+    tgtJson += "],\"LT\":[";
+    for (int i = 0; i < 8; i++) { if (i) tgtJson += ","; tgtJson += std::to_string(_longTgt[km][i]); }
+    tgtJson += "],\"LM\":[";
+    for (int i = 0; i < 8; i++)
+    {
+      if (i) tgtJson += ",";
+      tgtJson += "\"";
+      for (const char *p = _longMac[km][i]; *p; p++)
+      {
+        if (*p == '"') tgtJson += "\\\"";
+        else if (*p == '\\') tgtJson += "\\\\";
+        else tgtJson += *p;
+      }
+      tgtJson += "\"";
+    }
+    tgtJson += "]}";
+  }
+  tgtJson += "]}";
+  _strReplace(html, "TARGETDATAJSON", tgtJson);
+
   httpd_resp_set_type(req, "text/html");
   httpd_resp_send(req, html.c_str(), (ssize_t)html.size());
 }
@@ -605,6 +718,53 @@ void ConfigManager::_handleSave(httpd_req_t *req)
         _short[km][i] = (uint8_t)atoi(sv.c_str());
       if (!lv.empty())
         _long[km][i] = (uint8_t)atoi(lv.c_str());
+
+      // Parse target for short press: "0"=select, "1:"=HID broadcast,
+      // "1:AA:BB:CC:DD:EE:FF"=HID specific, "2"=BTHome
+      std::string tsv = _formParam(body.c_str(), (std::string("ts") + si).c_str());
+      if (!tsv.empty())
+      {
+        if (tsv[0] == '1')
+        {
+          _shortTgt[km][i] = TARGET_HID;
+          std::string m = (tsv.size() > 2) ? tsv.substr(2) : "";
+          strncpy(_shortMac[km][i], m.c_str(), 17);
+          _shortMac[km][i][17] = '\0';
+        }
+        else if (tsv[0] == '2')
+        {
+          _shortTgt[km][i] = TARGET_BTHOME;
+          _shortMac[km][i][0] = '\0';
+        }
+        else
+        {
+          _shortTgt[km][i] = TARGET_SELECT;
+          _shortMac[km][i][0] = '\0';
+        }
+      }
+
+      // Parse target for long press
+      std::string tlv = _formParam(body.c_str(), (std::string("tl") + si).c_str());
+      if (!tlv.empty())
+      {
+        if (tlv[0] == '1')
+        {
+          _longTgt[km][i] = TARGET_HID;
+          std::string m = (tlv.size() > 2) ? tlv.substr(2) : "";
+          strncpy(_longMac[km][i], m.c_str(), 17);
+          _longMac[km][i][17] = '\0';
+        }
+        else if (tlv[0] == '2')
+        {
+          _longTgt[km][i] = TARGET_BTHOME;
+          _longMac[km][i][0] = '\0';
+        }
+        else
+        {
+          _longTgt[km][i] = TARGET_SELECT;
+          _longMac[km][i][0] = '\0';
+        }
+      }
     }
   }
   saveKeymap();

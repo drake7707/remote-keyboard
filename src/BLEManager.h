@@ -44,6 +44,8 @@ public:
 
   std::vector<std::string> getConnections();
 
+  BLEAdvertisingManager& getAdvertisingManager();
+
   // Send a single key tap (press + immediate release).
   // Accepts any KEY_* constant, including media keys (KEY_MEDIA_PLAY_PAUSE, etc.).
   void write(std::string &target, uint8_t key);

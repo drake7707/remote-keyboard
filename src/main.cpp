@@ -84,11 +84,11 @@ void applyKeymap()
 
 // ---------------------------------------------------------------------------
 // Config mode -- starts the AP, runs the client loop, then restores BLE
-// --------------------------------------------D-------------------------------
+// ---------------------------------------------------------------------------
 void start_config_mode()
 {
   if (DEBUG)
-    printf("Entering config AP mode\n");
+    printf("[MAIN] Entering config AP mode\n");
 
   // On ESP32-C3 the radio is shared; stop BLE before starting WiFi AP
   bleManager.end();
@@ -104,7 +104,7 @@ void start_config_mode()
   // While status != APP_CONFIG the on_short_press handler will NOT set the exit flag.
   buttonManager.drainButton(3000);
   if (DEBUG)
-    printf("Button released, entering config loop\n");
+    printf("[MAIN] Button released, entering config loop\n");
 
   // Only NOW switch to config-mode status so the exit check becomes active
   ledManager.setStatus(APP_CONFIG);
@@ -128,7 +128,7 @@ void start_config_mode()
   ledManager.resetLedState();
 
   if (DEBUG)
-    printf("Config mode exited, BLE restarting\n");
+    printf("[MAIN] Config mode exited, BLE restarting\n");
 }
 
 std::string getCurrentOutputTarget()
@@ -157,7 +157,7 @@ void toggleOutputTarget()
   else if (connections.size() == 1)
   {
     if (DEBUG)
-      printf("Only one connection, staying on broadcast\n");
+      printf("[MAIN] Only one connection, staying on BROADCAST\n");
     currentOutputTarget = "";
     ledManager.flashLed(1, 1000, 100);
     return;
@@ -198,7 +198,7 @@ void toggleOutputTarget()
     }
   }
   if (DEBUG)
-    printf("Output target set to: %s\n", currentOutputTarget == "" ? "BROADCAST" : currentOutputTarget.c_str());
+    printf("[MAIN] Output target set to: %s\n", currentOutputTarget == "" ? "BROADCAST" : currentOutputTarget.c_str());
 }
 
 // ---------------------------------------------------------------------------
@@ -231,7 +231,8 @@ void on_short_press(char btn)
     auto currentTarget = getCurrentOutputTarget();
 
     if (DEBUG)
-      printf("Short press: %c -> key=0x%02X (%d)\n", btn, shortKey, shortKey);
+      printf("[MAIN] Short press: %c -> key=0x%02X (%d)\n", btn, shortKey, shortKey);
+
     bleManager.write(currentTarget, shortKey);
     ledManager.flashLed(1, 150, 0);
   }
@@ -258,8 +259,10 @@ void on_long_press(char btn)
   auto currentTarget = getCurrentOutputTarget();
 
   uint8_t longKey = configManager.getLongKey(idx);
+
   if (DEBUG)
-    printf("Long press: %c -> key=0x%02X (%d) to target %s\n", btn, longKey, longKey, currentTarget == "" ? "BROADCAST" : currentTarget.c_str());
+    printf("[MAIN] Long press: %c -> key=0x%02X (%d) to target %s\n", btn, longKey, longKey, currentTarget == "" ? "BROADCAST" : currentTarget.c_str());
+
   if (longKey != 0)
   {
     bleManager.write(currentTarget, longKey);
@@ -271,7 +274,7 @@ void on_long_press(char btn)
 void on_combo(char held, char pressed)
 {
   if (DEBUG)
-    printf("Key combo: hold %c + press %c\n", held, pressed);
+    printf("[MAIN] Key combo: hold %c + press %c\n", held, pressed);
 
   if (held == '4')
   {
@@ -279,6 +282,8 @@ void on_combo(char held, char pressed)
       toggleKeymap(pressed);
     else if (pressed == '5')
       toggleOutputTarget();
+    else if (pressed == '6')
+      bleManager.getAdvertisingManager().startCycle();
   }
 }
 
@@ -295,7 +300,7 @@ void toggleKeymap(char pressed)
   if (newKeymap > 0)
   {
     if (DEBUG)
-      printf("Key combo: hold 4 + press %c -> keymap %d\n", pressed, newKeymap);
+      printf("[MAIN] Key combo: hold 4 + press %c -> keymap %d\n", pressed, newKeymap);
     configManager.setActiveKeymap(newKeymap);
     applyKeymap();
     ledManager.flashLed(newKeymap, 150, 100);
@@ -306,7 +311,7 @@ void toggleKeymap(char pressed)
 void on_battery_updated(uint8_t percent)
 {
   if (DEBUG)
-    printf("Battery: %d%%\n", percent);
+    printf("[MAIN] Battery: %d%%\n", percent);
   bleManager.setBatteryLevel(percent);
 }
 
@@ -343,8 +348,9 @@ extern "C" void app_main()
   {
     BLEManager::clearAllBonds();
     configManager.clearClearBondsFlag();
+
     if (DEBUG)
-      printf("BLE bonds cleared on request.\n");
+      printf("[MAIN] BLE bonds cleared on request.\n");
   }
 
   buttonManager.setPinConfiguration(getKeypadRowPins(LEGACY),
@@ -378,11 +384,11 @@ extern "C" void app_main()
   }
   else
   {
-    printf("Light sleep not enabled in DEBUG mode. If you want to debug light sleep issues change this because serial is not reliable in light sleep.\n");
+    printf("[MAIN] Light sleep not enabled in DEBUG mode. If you want to debug light sleep issues change this because serial is not reliable in light sleep.\n");
   }
 
   if (DEBUG)
-    printf("Setup complete.\n");
+    printf("[MAIN] Setup complete.\n");
 
   const bool batteryEnabled = !LEGACY && configManager.isBatteryEnabled();
 

@@ -38,14 +38,26 @@ public:
   // Resets internal state; safe to call at any time.
   void startCycle();
 
-  // Advance to the next advertising step.
-  // Invoked automatically by the advertising-complete callback; exposed so
-  // callers can drive the cycle manually if needed.
-  void advance();
+  bool isAdvertising();
+
+  
 
 private:
   const std::map<std::string, uint16_t> &_connections;
   uint8_t _maxConnections = 0;
   int _nextBondIdx = 0;
   uint32_t _advertisingCycleStartMs = 0;
+
+  // Advance to the next advertising step.
+  void advance();
+
+    // Total advertising window when at least one connection is already active.
+  // Once this budget is spent the cycle stops to save battery.
+  static const uint32_t MAX_ADVERTISING_DURATION_AFTER_ALREADY_CONNECTED_MS = 60000;
+
+  // Per-bond directed advertising window.  Directed high-duty advertising has a
+  // hardware-enforced ~1.28 s controller timeout; 1500 ms sits safely above it
+  // so NimBLE always fires the advertising-complete callback before we attempt
+  // to start the next step.
+  static const uint32_t DIRECTED_ADV_STEP_DURATION_MS = 1500;
 };

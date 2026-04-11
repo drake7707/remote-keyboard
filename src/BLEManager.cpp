@@ -78,7 +78,7 @@ void BLEManager::begin(const char *name, bool negotiatePowerSavingConnectionPara
   // overriding it with NO_INPUT_OUTPUT prevents Android from bonding.
   NimBLEDevice::setSecurityAuth(true, true, true);
   if (DEBUG)
-    printf("Bonds in NVS: %d\n", NimBLEDevice::getNumBonds());
+    printf("[BLE] Bonds in NVS: %d\n", NimBLEDevice::getNumBonds());
 
   _server = NimBLEDevice::createServer();
   _server->setCallbacks(this);
@@ -115,6 +115,11 @@ void BLEManager::end()
 }
 
 bool BLEManager::isConnected() { return !_connections.empty(); }
+
+BLEAdvertisingManager& BLEManager::getAdvertisingManager()
+{
+  return _advManager;
+}
 
 std::vector<std::string> BLEManager::getConnections()
 {
@@ -195,7 +200,7 @@ void BLEManager::onConnect(NimBLEServer *server, NimBLEConnInfo &conn_info)
   _connections[conn_info.getIdAddress().toString()] = conn_info.getConnHandle();
 
   if (DEBUG)
-    printf("BLE connected to %s\n", conn_info.getIdAddress().toString().c_str());
+    printf("[BLE] BLE connected to %s\n", conn_info.getIdAddress().toString().c_str());
 
   _advManager.startCycle();
 
@@ -205,11 +210,11 @@ void BLEManager::onConnect(NimBLEServer *server, NimBLEConnInfo &conn_info)
     NimBLEAttValue params;
     // Use NimBLE's updateConnParams: min=40, max=80 (units of 1.25 ms = 50–100 ms)
     _server->updateConnParams(conn_info.getConnHandle(), 40, 80, 4, 400);
-    printf("Requested power-saving connection parameters: interval 50–100 ms, latency 4, timeout 4 s\n");
+    printf("[BLE] Requested power-saving connection parameters: interval 50–100 ms, latency 4, timeout 4 s\n");
   }
   else
   {
-    printf("Power-saving connection parameters negotiation disabled; using default BLE connection parameters\n");
+    printf("[BLE] Power-saving connection parameters negotiation disabled; using default BLE connection parameters\n");
   }
 }
 
@@ -217,7 +222,7 @@ void BLEManager::onDisconnect(NimBLEServer *, NimBLEConnInfo &conn_info, int rea
 {
   _connections.erase(conn_info.getIdAddress().toString());
   if (DEBUG)
-    printf("BLE disconnected (reason %d), bonds in NVS: %d\n",
+    printf("[BLE] BLE disconnected (reason %d), bonds in NVS: %d\n",
            reason, NimBLEDevice::getNumBonds());
 
   _advManager.startCycle();
@@ -226,7 +231,7 @@ void BLEManager::onDisconnect(NimBLEServer *, NimBLEConnInfo &conn_info, int rea
 void BLEManager::onAuthenticationComplete(NimBLEConnInfo &conn_info)
 {
   if (DEBUG)
-    printf("Auth complete for %s — bonded: %s, bonds stored: %d\n, connections=%d",
+    printf("[BLE] Auth complete for %s — bonded: %s, bonds stored: %d connections=%d \n",
            conn_info.getIdAddress().toString().c_str(),
            conn_info.isBonded() ? "yes" : "no",
            NimBLEDevice::getNumBonds(),

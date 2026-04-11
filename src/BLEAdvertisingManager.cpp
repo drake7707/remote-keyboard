@@ -1,21 +1,12 @@
 #include "BLEAdvertisingManager.h"
 
-// Total advertising window when at least one connection is already active.
-// Once this budget is spent the cycle stops to save battery.
-static const uint32_t MAX_ADVERTISING_DURATION_AFTER_ALREADY_CONNECTED_MS = 60000;
-
-// Per-bond directed advertising window.  Directed high-duty advertising has a
-// hardware-enforced ~1.28 s controller timeout; 1500 ms sits safely above it
-// so NimBLE always fires the advertising-complete callback before we attempt
-// to start the next step.
-static const uint32_t DIRECTED_ADV_STEP_DURATION_MS = 1500;
-
 BLEAdvertisingManager::BLEAdvertisingManager(const std::map<std::string, uint16_t> &connections)
     : _connections(connections) {}
 
 void BLEAdvertisingManager::begin(NimBLEHIDDevice *hid, const char *deviceName, uint8_t maxConnections)
 {
   _maxConnections = maxConnections;
+
   NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
   adv->setAppearance(HID_KEYBOARD);
   adv->addServiceUUID(hid->getHidService()->getUUID());
@@ -29,7 +20,8 @@ void BLEAdvertisingManager::begin(NimBLEHIDDevice *hid, const char *deviceName, 
   // When advertising ends (directed timeout, connection, or explicit stop)
   // NimBLE fires this callback — we use it to step to the next bond or fall
   // back to undirected advertising.
-  adv->setAdvertisingCompleteCallback([this](NimBLEAdvertising *) { advance(); });
+  adv->setAdvertisingCompleteCallback([this](NimBLEAdvertising *)
+                                      { advance(); });
 }
 
 void BLEAdvertisingManager::startCycle()
@@ -37,7 +29,7 @@ void BLEAdvertisingManager::startCycle()
   if (_connections.size() >= _maxConnections)
   {
     if (DEBUG)
-      printf("Connection limit reached (%d), not advertising\n", _maxConnections);
+      printf("[BLE ADV] Connection limit reached (%d), not advertising\n", _maxConnections);
     return;
   }
 
@@ -45,7 +37,7 @@ void BLEAdvertisingManager::startCycle()
   _advertisingCycleStartMs = pdTICKS_TO_MS(xTaskGetTickCount());
 
   if (DEBUG)
-    printf("Starting advertising cycle with %d connection%s\n",
+    printf("[BLE ADV] Starting advertising cycle with %d connection%s\n",
            (int)_connections.size(), _connections.size() == 1 ? "" : "s");
 
   advance();
@@ -56,7 +48,7 @@ void BLEAdvertisingManager::advance()
   if (_connections.size() >= _maxConnections)
   {
     if (DEBUG)
-      printf("Connection limit reached (%d), stopping advertising cycle\n", _maxConnections);
+      printf("[BLE ADV] Connection limit reached (%d), stopping advertising cycle\n", _maxConnections);
     return;
   }
 
@@ -68,7 +60,7 @@ void BLEAdvertisingManager::advance()
   if (adv->isAdvertising())
   {
     if (DEBUG)
-      printf("Advertising already active, skipping advance\n");
+      printf("[BLE ADV] Advertising already active, skipping advance\n");
     return;
   }
 
@@ -83,7 +75,7 @@ void BLEAdvertisingManager::advance()
     if (elapsed >= MAX_ADVERTISING_DURATION_AFTER_ALREADY_CONNECTED_MS)
     {
       if (DEBUG)
-        printf("Advertising budget exhausted after %lu ms, stopping\n", elapsed);
+        printf("[BLE ADV] Advertising budget exhausted after %lu ms, stopping\n", elapsed);
       return;
     }
     remainingBudgetMs = MAX_ADVERTISING_DURATION_AFTER_ALREADY_CONNECTED_MS - elapsed;
@@ -105,7 +97,7 @@ void BLEAdvertisingManager::advance()
                                : std::min(remainingBudgetMs, DIRECTED_ADV_STEP_DURATION_MS);
 
     if (DEBUG)
-      printf("Directed adv to bonded peer %s for %lu ms\n", mac.c_str(), dirDuration);
+      printf("[BLE ADV] Start directed advertising to bonded peer %s for %lu ms\n", mac.c_str(), dirDuration);
 
     adv->start(dirDuration, &addr);
     return;
@@ -113,7 +105,12 @@ void BLEAdvertisingManager::advance()
 
   // All bonds tried (or no bonds at all) — fall back to undirected advertising.
   if (DEBUG)
-    printf("All bonds tried, starting undirected advertising for %lu ms\n", remainingBudgetMs);
+    printf("[BLE ADV] All bonds tried, starting undirected advertising for %lu ms\n", remainingBudgetMs);
 
   adv->start(remainingBudgetMs);
+}
+
+bool BLEAdvertisingManager::isAdvertising()
+{
+  return NimBLEDevice::getAdvertising()->isAdvertising();
 }

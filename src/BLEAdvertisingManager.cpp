@@ -185,7 +185,7 @@ void BLEAdvertisingManager::broadcastBTHomeButtonPress(uint8_t eventType, uint8_
   //
   // Byte 0   — device info: version=2, trigger-based=1, no encryption → 0x44
   //              bit 0   : encryption (0 = none)
-  //              bit 1–1 : reserved
+  //              bit 1   : reserved
   //              bit 2   : trigger-based device (1 = event/trigger)
   //              bit 3–4 : reserved
   //              bit 5–7 : BTHome version (010 = v2)

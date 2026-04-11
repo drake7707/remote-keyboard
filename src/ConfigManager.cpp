@@ -472,6 +472,20 @@ void ConfigManager::_strTrim(std::string &s)
     s.erase(e + 1);
 }
 
+// Wrap s in JSON double-quotes, escaping backslashes and double-quotes.
+std::string ConfigManager::_jsonEscapeStr(const char *s)
+{
+  std::string result = "\"";
+  for (const char *p = s; *p; p++)
+  {
+    if (*p == '"')       result += "\\\"";
+    else if (*p == '\\') result += "\\\\";
+    else                 result += *p;
+  }
+  result += "\"";
+  return result;
+}
+
 // URL-decode a percent-encoded buffer.
 std::string ConfigManager::_urlDecode(const char *src, size_t len)
 {
@@ -652,7 +666,7 @@ void ConfigManager::_handleRoot(httpd_req_t *req)
   for (size_t b = 0; b < _bondList.size(); b++)
   {
     if (b) tgtJson += ",";
-    tgtJson += "\"" + _bondList[b] + "\"";
+    tgtJson += _jsonEscapeStr(_bondList[b].c_str());
   }
   tgtJson += "],\"km\":[";
   for (int km = 0; km < 3; km++)
@@ -664,14 +678,7 @@ void ConfigManager::_handleRoot(httpd_req_t *req)
     for (int i = 0; i < 8; i++)
     {
       if (i) tgtJson += ",";
-      tgtJson += "\"";
-      for (const char *p = _shortMac[km][i]; *p; p++)
-      {
-        if (*p == '"') tgtJson += "\\\"";
-        else if (*p == '\\') tgtJson += "\\\\";
-        else tgtJson += *p;
-      }
-      tgtJson += "\"";
+      tgtJson += _jsonEscapeStr(_shortMac[km][i]);
     }
     tgtJson += "],\"LT\":[";
     for (int i = 0; i < 8; i++) { if (i) tgtJson += ","; tgtJson += std::to_string(_longTgt[km][i]); }
@@ -679,14 +686,7 @@ void ConfigManager::_handleRoot(httpd_req_t *req)
     for (int i = 0; i < 8; i++)
     {
       if (i) tgtJson += ",";
-      tgtJson += "\"";
-      for (const char *p = _longMac[km][i]; *p; p++)
-      {
-        if (*p == '"') tgtJson += "\\\"";
-        else if (*p == '\\') tgtJson += "\\\\";
-        else tgtJson += *p;
-      }
-      tgtJson += "\"";
+      tgtJson += _jsonEscapeStr(_longMac[km][i]);
     }
     tgtJson += "]}";
   }
@@ -727,6 +727,7 @@ void ConfigManager::_handleSave(httpd_req_t *req)
         if (tsv[0] == '1')
         {
           _shortTgt[km][i] = TARGET_HID;
+          // Format: "1:<mac>" — skip the "1:" prefix (2 chars) to get the MAC
           std::string m = (tsv.size() > 2) ? tsv.substr(2) : "";
           strncpy(_shortMac[km][i], m.c_str(), sizeof(_shortMac[km][i]) - 1);
           _shortMac[km][i][sizeof(_shortMac[km][i]) - 1] = '\0';
@@ -750,6 +751,7 @@ void ConfigManager::_handleSave(httpd_req_t *req)
         if (tlv[0] == '1')
         {
           _longTgt[km][i] = TARGET_HID;
+          // Format: "1:<mac>" — skip the "1:" prefix (2 chars) to get the MAC
           std::string m = (tlv.size() > 2) ? tlv.substr(2) : "";
           strncpy(_longMac[km][i], m.c_str(), sizeof(_longMac[km][i]) - 1);
           _longMac[km][i][sizeof(_longMac[km][i]) - 1] = '\0';

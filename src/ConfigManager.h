@@ -157,6 +157,7 @@ private:
   static std::string _urlDecode(const char* src, size_t len);
   static std::string _formParam(const char* body, const char* name);
   static bool        _readBody(httpd_req_t* req, std::string& out);
+  static std::string _jsonEscapeStr(const char* s); // wrap s in JSON double-quotes with escaping
 
   // ---------------------------------------------------------------------------
   // Static trampoline handlers (httpd requires plain function pointers)

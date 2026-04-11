@@ -107,7 +107,12 @@ void start_config_mode()
   // NOTE: ledManager status is intentionally NOT yet APP_CONFIG here.
   // Setting it before the button is released would immediately trigger
   // the on_short_press config-exit check. See drainButton below.
-  configManager.beginConfigAP(bondList);
+  {
+    const bool batAvail = (!LEGACY && configManager.isBatteryEnabled());
+    int batMv  = batAvail ? batteryManager.getLastVoltageMv() : -1;
+    int batPct = batAvail ? batteryManager.getLastPercent()   : -1;
+    configManager.beginConfigAP(bondList, batMv, batPct);
+  }
 
   // Drain the button-4 RELEASED event that triggered config mode.
   // While status != APP_CONFIG the on_short_press handler will NOT set the exit flag.

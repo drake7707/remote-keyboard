@@ -113,7 +113,10 @@ public:
 
   // Bond list is passed here (collected from BLEManager before BLE is stopped)
   // so the web UI can offer known peers as HID target options.
-  void beginConfigAP(const std::vector<std::string>& bondList);
+  // Battery voltage (mV) and percentage are passed for display in the web UI;
+  // pass -1 for either to indicate no reading is available.
+  void beginConfigAP(const std::vector<std::string>& bondList,
+                     int batVoltageMv = -1, int batPercent = -1);
   void handleClient() {}
   void endConfigAP();
 
@@ -127,6 +130,8 @@ private:
   KeyEntry          _shortEntries[3][8]  = {};
   KeyEntry          _longEntries[3][8]   = {};
   std::vector<std::string> _bondList;    // populated at AP start
+  int               _batVoltageMv  = -1; // battery voltage passed at AP start (-1 = unavailable)
+  int               _batPercent    = -1; // battery percent passed at AP start (-1 = unavailable)
   int               _activeKeymap = 1;
   bool              _batteryEnabled = false;
   bool              _blePowerSaving = false;

@@ -66,8 +66,13 @@
     .btn-outline:hover{background:#f1f5f9;border-color:#94a3b8}
     /* Save bar */
     .save-bar{margin-top:20px;padding-top:16px;border-top:1px solid #f1f5f9}
-    /* OTA status */
-    #otaSt{font-size:.8rem;color:#94a3b8;margin-top:8px;display:block}
+    /* File input */
+    input[type=file]{display:block;margin-bottom:12px;font-size:.9rem;color:#334155;width:100%;max-width:400px;padding:6px 0}
+    /* Battery info badge */
+    .bat-info{display:inline-flex;align-items:center;gap:8px;padding:8px 14px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;margin-bottom:14px}
+    .bat-info-icon{font-size:1.1rem}
+    .bat-info-text{font-size:.88rem;color:#15803d;font-weight:600}
+    .bat-info-sub{font-size:.78rem;color:#4ade80;margin-top:1px}
     /* Footer */
     footer{text-align:center;font-size:.78rem;color:#94a3b8;padding:20px 0 8px}
     footer a{color:#64748b;text-decoration:none}
@@ -117,6 +122,13 @@
       </div>
 
       <div id="battery-section" style="display:none">
+        <div id="bat-reading" style="display:none" class="bat-info">
+          <span class="bat-info-icon">&#128267;</span>
+          <div>
+            <div class="bat-info-text" id="bat-pct-txt"></div>
+            <div class="bat-info-sub" id="bat-mv-txt"></div>
+          </div>
+        </div>
         <label class="chk-row">
           <input type="checkbox" id="battery_enabled" name="battery_enabled" value="1">
           <span class="chk-body">
@@ -205,6 +217,11 @@
   document.getElementById('ble_power_saving').checked = CFG.blePowerSaving;
   if (CFG.batterySection) document.getElementById('battery-section').style.display = '';
   document.getElementById('max_ble_connections').value = CFG.maxBleConnections;
+  if (CFG.batterySection && CFG.batPercent >= 0) {
+    document.getElementById('bat-reading').style.display = '';
+    document.getElementById('bat-pct-txt').textContent = 'Battery: ' + CFG.batPercent + '%';
+    document.getElementById('bat-mv-txt').textContent  = CFG.batVoltageMv + '\u202fmV';
+  }
 
   document.getElementById('otaFrm').onsubmit = function () {
     var b = document.getElementById('otaBtn');

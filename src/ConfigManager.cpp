@@ -365,10 +365,13 @@ int ConfigManager::btnIndex(char key)
 // ---------------------------------------------------------------------------
 // AP / HTTP server -- config mode
 // ---------------------------------------------------------------------------
-void ConfigManager::beginConfigAP(const std::vector<std::string>& bondList)
+void ConfigManager::beginConfigAP(const std::vector<std::string>& bondList,
+                                   int batVoltageMv, int batPercent)
 {
-  _bondList   = bondList;
-  _exitConfig = false;
+  _bondList    = bondList;
+  _batVoltageMv = batVoltageMv;
+  _batPercent   = batPercent;
+  _exitConfig  = false;
 
   // WiFi AP setup
   _apNetif = esp_netif_create_default_wifi_ap();
@@ -574,6 +577,9 @@ void ConfigManager::_handleRoot(httpd_req_t *req)
   cJSON_AddBoolToObject(root, "batterySection", !LEGACY);
   cJSON_AddNumberToObject(root, "maxBleConnections", _maxBLEConnections);
   cJSON_AddNumberToObject(root, "activeKeymap", _activeKeymap);
+  // Battery reading snapshot (-1 means not available / battery not enabled)
+  cJSON_AddNumberToObject(root, "batVoltageMv", _batVoltageMv);
+  cJSON_AddNumberToObject(root, "batPercent",   _batPercent);
 
   // Expose target-type constants so JS always stays in sync with the firmware
   cJSON_AddNumberToObject(root, "TARGET_SELECT", TARGET_SELECT);

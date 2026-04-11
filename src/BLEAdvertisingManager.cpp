@@ -190,23 +190,33 @@ void BLEAdvertisingManager::broadcastBTHomeButtonPress(uint8_t eventType, uint8_
   //              bit 3–4 : reserved
   //              bit 5–7 : BTHome version (010 = v2)
   //
-  // Bytes 1–16 — 8 × Button object (object ID 0x3A, 1-byte value)
+  // Bytes 1–2  — Packet ID object (object ID 0x00, 1-byte uint8 value)
+  //              Incremented on every new event so Home Assistant can
+  //              distinguish distinct events from duplicate re-transmissions
+  //              of the same advertisement.
+  //
+  // Bytes 3–18 — 8 × Button object (object ID 0x3A, 1-byte value)
   //              Only the slot for the pressed button carries a non-zero event;
   //              all other slots carry 0x00 (None).  Advertising all 8 slots
   //              from the first packet lets Home Assistant create all 8 button
   //              entities immediately on discovery.
   // ---------------------------------------------------------------------------
-  static const uint8_t DEVICE_INFO   = 0x44; // v2, trigger-based, no encryption
-  static const uint8_t BUTTON_OBJ_ID = 0x3A; // BTHome Button object ID
-  // Payload: 1 device-info byte + 8 button objects (object-ID + value each).
-  static const int BTHOME_PAYLOAD_SIZE = 1 + 8 * 2;
+  static const uint8_t DEVICE_INFO     = 0x44; // v2, trigger-based, no encryption
+  static const uint8_t PACKET_ID_OBJ   = 0x00; // BTHome Packet ID object ID
+  static const uint8_t BUTTON_OBJ_ID   = 0x3A; // BTHome Button object ID
+  // Payload: 1 device-info byte + 1 packet-id object (ID + value) + 8 button objects (ID + value each).
+  static const int BTHOME_PAYLOAD_SIZE = 1 + 2 + 8 * 2;
+
+  _btHomePacketId++;  // increment before each new broadcast
 
   uint8_t payload[BTHOME_PAYLOAD_SIZE];
   payload[0] = DEVICE_INFO;
+  payload[1] = PACKET_ID_OBJ;
+  payload[2] = _btHomePacketId;
   for (int i = 0; i < 8; i++)
   {
-    payload[1 + i * 2]     = BUTTON_OBJ_ID;
-    payload[1 + i * 2 + 1] = (i == (button - 1)) ? eventType : BTHOME_BUTTON_NONE;
+    payload[3 + i * 2]     = BUTTON_OBJ_ID;
+    payload[3 + i * 2 + 1] = (i == (button - 1)) ? eventType : BTHOME_BUTTON_NONE;
   }
 
   // BTHome uses 16-bit service data UUID 0xFCD2.
@@ -221,8 +231,8 @@ void BLEAdvertisingManager::broadcastBTHomeButtonPress(uint8_t eventType, uint8_
   _btHomeBroadcastActive = true;
 
   if (DEBUG)
-    printf("[BLE ADV] BTHome: broadcasting button %d event 0x%02X for %lu ms\n",
-           button, eventType, BTHOME_BROADCAST_DURATION_MS);
+    printf("[BLE ADV] BTHome: broadcasting button %d event 0x%02X packet_id %d for %lu ms\n",
+           button, eventType, _btHomePacketId, BTHOME_BROADCAST_DURATION_MS);
 
   adv->start(BTHOME_BROADCAST_DURATION_MS);
 }

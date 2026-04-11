@@ -73,6 +73,11 @@ private:
   // True if HID advertising was running when a BTHome broadcast was started;
   // used to decide whether to restart the HID cycle after the broadcast ends.
   bool _restoreHIDAfterBTHome = false;
+  // Monotonically increasing packet ID included in every BTHome advertisement
+  // so that Home Assistant can distinguish distinct events from duplicate
+  // re-transmissions of the same advertisement (BTHome object ID 0x00).
+  // Wraps naturally from 255 → 0.
+  uint8_t _btHomePacketId = 0;
 
   // Advance to the next advertising step.
   void advance();

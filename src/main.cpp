@@ -218,21 +218,21 @@ void on_short_press(char btn)
     return;
   }
 
-  if (status == APP_CONNECTED || status == APP_CONNECTED_BLINK || status == APP_BT_DISCONNECTED)
+  int idx = ConfigManager::btnIndex(btn);
+  if (idx < 0)
+    return;
+
+  uint8_t shortKey = configManager.getShortKey(idx);
+  if (shortKey == 0)
+    return;
+
+  auto currentTarget = getCurrentOutputTarget();
+
+  if (DEBUG)
+    printf("[MAIN] Short press: %c -> key=0x%02X (%d)\n", btn, shortKey, shortKey);
+
+  if (bleManager.isConnected())
   {
-    int idx = ConfigManager::btnIndex(btn);
-    if (idx < 0)
-      return;
-
-    uint8_t shortKey = configManager.getShortKey(idx);
-    if (shortKey == 0)
-      return;
-
-    auto currentTarget = getCurrentOutputTarget();
-
-    if (DEBUG)
-      printf("[MAIN] Short press: %c -> key=0x%02X (%d)\n", btn, shortKey, shortKey);
-
     bleManager.write(currentTarget, shortKey);
     ledManager.flashLed(1, 150, 0);
   }
@@ -242,8 +242,6 @@ void on_short_press(char btn)
 void on_long_press(char btn)
 {
   AppStatus status = ledManager.getStatus();
-  if (status != APP_CONNECTED && status != APP_CONNECTED_BLINK && status != APP_BT_DISCONNECTED)
-    return;
 
   // Button 4 long-press always enters config mode, regardless of keymap
   if (btn == '4')
@@ -263,10 +261,13 @@ void on_long_press(char btn)
   if (DEBUG)
     printf("[MAIN] Long press: %c -> key=0x%02X (%d) to target %s\n", btn, longKey, longKey, currentTarget == "" ? "BROADCAST" : currentTarget.c_str());
 
-  if (longKey != 0)
+  if (bleManager.isConnected())
   {
-    bleManager.write(currentTarget, longKey);
-    ledManager.flashLed(1, 150, 0);
+    if (longKey != 0)
+    {
+      bleManager.write(currentTarget, longKey);
+      ledManager.flashLed(1, 150, 0);
+    }
   }
 }
 
@@ -401,14 +402,32 @@ extern "C" void app_main()
 
     // Track BLE connection state changes
     AppStatus status = ledManager.getStatus();
-    if (status == APP_BT_DISCONNECTED && bleManager.isConnected())
+    if (status == APP_CONFIG)
     {
-      ledManager.setStatus(APP_CONNECTED);
-      ledManager.resetLedState();
     }
-    if (status != APP_BT_DISCONNECTED && status != APP_CONFIG && !bleManager.isConnected())
+    else
     {
-      ledManager.setStatus(APP_BT_DISCONNECTED);
+      if (bleManager.isConnected())
+      {
+        if (bleManager.getAdvertisingManager().isAdvertising() && status != APP_BT_CONNECTED_ADVERTISING)
+        {
+          ledManager.setStatus(APP_BT_CONNECTED_ADVERTISING);
+          ledManager.resetLedState();
+        }
+        else if (!bleManager.getAdvertisingManager().isAdvertising() && status != APP_CONNECTED)
+        {
+          ledManager.setStatus(APP_CONNECTED);
+          ledManager.resetLedState();
+        }
+      }
+      else
+      {
+        if (status != APP_BT_DISCONNECTED && status != APP_CONFIG)
+        {
+          ledManager.setStatus(APP_BT_DISCONNECTED);
+          ledManager.resetLedState();
+        }
+      }
     }
 
     // Drive LED blink pattern and any pending flash animation

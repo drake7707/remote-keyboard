@@ -200,7 +200,7 @@ void BLEManager::onConnect(NimBLEServer *server, NimBLEConnInfo &conn_info)
   _connections[conn_info.getIdAddress().toString()] = conn_info.getConnHandle();
 
   if (DEBUG)
-    printf("[BLE] BLE connected to %s\n", conn_info.getIdAddress().toString().c_str());
+    printf("[BLE] Connected to %s\n", conn_info.getIdAddress().toString().c_str());
 
   _advManager.startCycle();
 
@@ -222,7 +222,7 @@ void BLEManager::onDisconnect(NimBLEServer *, NimBLEConnInfo &conn_info, int rea
 {
   _connections.erase(conn_info.getIdAddress().toString());
   if (DEBUG)
-    printf("[BLE] BLE disconnected (reason %d), bonds in NVS: %d\n",
+    printf("[BLE] Disconnected (reason %d), bonds in NVS: %d\n",
            reason, NimBLEDevice::getNumBonds());
 
   _advManager.startCycle();

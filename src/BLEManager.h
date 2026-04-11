@@ -96,4 +96,6 @@ private:
   static bool     isMediaKey(uint8_t k);
   static uint16_t mediaKeyToUsage(uint8_t k);
   static void     toHID(uint8_t k, uint8_t &scan, uint8_t &mod);
+  
+  
 };

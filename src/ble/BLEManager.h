@@ -7,7 +7,7 @@
 #include <NimBLEUtils.h>
 #include <NimBLEHIDDevice.h>
 #include "HIDTypes.h"
-#include "KeyCodes.h"
+#include "buttons/KeyCodes.h"
 #include "BLEAdvertisingManager.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>

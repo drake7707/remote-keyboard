@@ -1,4 +1,4 @@
-#include "WebUIConfigManager.h"
+#include "config/WebUIConfigManager.h"
 #include "cJSON.h"
 
 void WebUIConfigManager::begin(StatusLedManager *led, const char *firmwareVersion)

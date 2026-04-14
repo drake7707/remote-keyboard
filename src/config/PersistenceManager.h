@@ -5,7 +5,7 @@
 #include <cstdlib>
 #include <nvs_flash.h>
 #include <nvs.h>
-#include "KeyCodes.h"
+#include "buttons/KeyCodes.h"
 
 extern const int DEBUG;
 extern const bool LEGACY;

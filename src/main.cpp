@@ -44,9 +44,9 @@ const char FIRMWARE_VERSION[] = "1.4.0";
 // ---------------------------------------------------------------------------
 #include "HardwareConfig.h"
 #include "StatusLedManager.h"
-#include "BLEManager.h"
-#include "ConfigManager.h"
-#include "ButtonManager.h"
+#include "ble/BLEManager.h"
+#include "config/ConfigManager.h"
+#include "buttons/ButtonManager.h"
 #include "BatteryManager.h"
 #include "main.h"
 

@@ -41,6 +41,7 @@ public:
   void end();
 
   bool isConnected() const;
+  bool isConnected(const std::string &target) const;
 
   std::vector<std::string> getConnections() const;
 

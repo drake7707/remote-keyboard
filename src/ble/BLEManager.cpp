@@ -116,6 +116,8 @@ void BLEManager::end()
 
 bool BLEManager::isConnected() const { return !_connections.empty(); }
 
+bool BLEManager::isConnected(const std::string &target) const { return _connections.find(target) != _connections.end(); }
+
 BLEAdvertisingManager& BLEManager::getAdvertisingManager()
 {
   return _advManager;

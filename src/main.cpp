@@ -267,8 +267,19 @@ void on_short_press(char btn)
 
   if (bleManager.isConnected())
   {
-    bleManager.write(target, entry.key);
-    ledManager.flashButtonPressed(idx);
+    if (target != "" && !bleManager.isConnected(target))
+    {
+      ledManager.flashButtonPressError(idx);
+    }
+    else
+    {
+      bleManager.write(target, entry.key);
+      ledManager.flashButtonPressed(idx);
+    }
+  }
+  else
+  {
+    ledManager.flashButtonPressError(idx);
   }
 }
 
@@ -310,13 +321,27 @@ void on_long_press(char btn)
     printf("[MAIN] Long press: %c -> key=0x%02X (%d) to target %s\n",
            btn, entry.key, entry.key, target.empty() ? "BROADCAST" : target.c_str());
 
+  if (entry.key == 0)
+  {
+    ledManager.flashButtonPressError(idx);
+    return;
+  }
+
   if (bleManager.isConnected())
   {
-    if (entry.key != 0)
+    if (target != "" && !bleManager.isConnected(target))
+    {
+      ledManager.flashButtonPressError(idx);
+    }
+    else
     {
       bleManager.write(target, entry.key);
       ledManager.flashButtonPressed(idx);
     }
+  }
+  else
+  {
+    ledManager.flashButtonPressError(idx);
   }
 }
 
@@ -358,7 +383,10 @@ void on_combo(char held, char pressed)
     }
 
     if (combo.key == 0)
+    {
+      ledManager.flashButtonPressError(Config::btnIndex(pressed));
       return;
+    }
 
     std::string target;
     if (combo.target == TARGET_HID)
@@ -372,8 +400,19 @@ void on_combo(char held, char pressed)
 
     if (bleManager.isConnected())
     {
-      bleManager.write(target, combo.key);
-      ledManager.flashButtonPressed(Config::btnIndex(pressed));
+      if (target != "" && !bleManager.isConnected(target))
+      {
+        ledManager.flashButtonPressError(Config::btnIndex(pressed));
+      }
+      else
+      {
+        bleManager.write(target, combo.key);
+        ledManager.flashButtonPressed(Config::btnIndex(pressed));
+      }
+    }
+    else
+    {
+      ledManager.flashButtonPressError(Config::btnIndex(pressed));
     }
     return;
   }

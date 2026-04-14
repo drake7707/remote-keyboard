@@ -42,6 +42,10 @@ void StatusLedManager::flashTargetChanged(uint32_t targetIndex)
 }
 
 void  StatusLedManager::flashConfigModeEntry() {
+  flashLed(5, 100, 100);
+}
+
+void StatusLedManager::flashButtonPressError(uint32_t buttonIndex) {
   flashLed(3, 100, 100);
 }
 

@@ -435,7 +435,7 @@
     var tgtVal      = document.getElementById('newComboTgt' + km).value;
 
     if (heldCode === pressedCode) {
-      alert('Hold and press buttons must be different.');
+      alert('The held button and pressed button must be different.');
       return;
     }
 
@@ -450,7 +450,7 @@
     }
 
     if (tgtType !== TARGET_BTHOME && !key) {
-      alert('Please select a key action (or choose BT\u00a0Home as target).');
+      alert('Please select a key action (or choose BT Home as target).');
       return;
     }
 

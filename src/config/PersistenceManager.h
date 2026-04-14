@@ -14,8 +14,9 @@ extern const bool LEGACY;
 extern const char DEFAULT_BLE_NAME[];
 
 // ---------------------------------------------------------------------------
-// PersistenceManager -- manages all NVS storage for keymaps, BLE name,
-// battery settings, active keymap, and the "clear bonds" flag.
+// PersistenceManager -- stateless NVS I/O layer.
+// Reads settings from NVS and returns them; writes settings to NVS when given
+// values.  No in-memory state is kept here -- that lives in ConfigManager.
 // ---------------------------------------------------------------------------
 
 class PersistenceManager {
@@ -38,83 +39,35 @@ public:
     char      mac[18] = {}; // HID peer MAC ("" = broadcast all)
   };
 
-  // Load all settings from NVS in one call.
-  void loadAll();
+  // ---------------------------------------------------------------------------
+  // NVS load functions -- read from NVS into caller-supplied storage
+  // ---------------------------------------------------------------------------
+  void    loadKeymaps(KeyEntry shortEntries[3][8], KeyEntry longEntries[3][8]);
+  int     loadActiveKeymap();
+  void    loadBleName(char* out, size_t len);
+  bool    loadBatteryEnabled();
+  bool    loadBLEPowerSaving();
+  uint8_t loadMaxBLEConnections();
 
   // ---------------------------------------------------------------------------
-  // NVS -- keymaps (3 slots)
+  // NVS save functions -- write caller-supplied values to NVS
   // ---------------------------------------------------------------------------
-  void saveKeymap();
+  void saveKeymaps(const KeyEntry shortEntries[3][8], const KeyEntry longEntries[3][8]);
+  void saveActiveKeymap(int slot);
+  void saveBleName(const char* name);
+  void saveBatteryEnabled(bool v);
+  void saveBLEPowerSaving(bool v);
+  void saveMaxBLEConnections(uint8_t v);
 
   // ---------------------------------------------------------------------------
-  // NVS -- active keymap index (1, 2, or 3)
-  // ---------------------------------------------------------------------------
-  void setActiveKeymap(int slot);
-
-  int getActiveKeymap() const { return _activeKeymap; }
-
-  // ---------------------------------------------------------------------------
-  // NVS -- BLE device name
-  // ---------------------------------------------------------------------------
-  void saveBleName();
-
-  // ---------------------------------------------------------------------------
-  // NVS -- battery enable flag
-  // ---------------------------------------------------------------------------
-  void saveBatteryEnabled();
-
-  void saveBLEPowerSaving();
-
-  void saveMaxBLEConnections();
-
-  bool    isBatteryEnabled()     const { return _batteryEnabled; }
-  bool    allowBLEPowerSaving()  const { return _blePowerSaving; }
-  uint8_t getMaxBLEConnections() const { return _maxBLEConnections; }
-
-  // ---------------------------------------------------------------------------
-  // NVS -- "clear bonds" flag
+  // NVS -- "clear bonds" flag (inherently stateless; no associated value)
   // ---------------------------------------------------------------------------
   void requestClearBonds();
   bool isClearBondsRequested();
   void clearClearBondsFlag();
 
   // ---------------------------------------------------------------------------
-  // Keymap accessors
+  // Utility
   // ---------------------------------------------------------------------------
-
-  // Returns the short/long press entry for the active keymap (read-only).
-  const KeyEntry& getShortEntry(int idx) const;
-  const KeyEntry& getLongEntry(int idx)  const;
-
-  // Returns a mutable reference to a specific keymap slot (used by web save handler).
-  KeyEntry& rawShortEntry(int km, int idx);
-  KeyEntry& rawLongEntry(int km, int idx);
-
-  const char* getBleName() const { return _bleName; }
-  void        setBleName(const char* name);
-
-  void setBatteryEnabled(bool v)       { _batteryEnabled = v; }
-  void setBlePowerSaving(bool v)       { _blePowerSaving = v; }
-  void setMaxBLEConnections(uint8_t v) { _maxBLEConnections = v; }
-
   static int btnIndex(char key);
-
-private:
-  KeyEntry _shortEntries[3][8]  = {};
-  KeyEntry _longEntries[3][8]   = {};
-  int      _activeKeymap        = 1;
-  bool     _batteryEnabled      = false;
-  bool     _blePowerSaving      = false;
-  uint8_t  _maxBLEConnections   = 1;
-  char     _bleName[BLE_NAME_MAX_LEN + 1] = "RemoteKeyboard";
-
-  // ---------------------------------------------------------------------------
-  // Individual NVS loaders (called by loadAll)
-  // ---------------------------------------------------------------------------
-  void _loadKeymap();
-  void _loadActiveKeymap();
-  void _loadBleName();
-  void _loadBatteryEnabled();
-  void _loadBLEPowerSaving();
-  void _loadMaxBLEConnections();
 };

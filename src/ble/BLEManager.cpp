@@ -63,12 +63,12 @@ static const uint8_t _asciiToHid[95] = {
     0xAF, 0xB1, 0xB0, 0xB5                                      // {-~  123-126
 };
 
-BLEManager::BLEManager(const char *mfr, uint8_t bat)
-    : _manufacturer(mfr), _battery(bat), _advManager(_connections) {}
+BLEManager::BLEManager(const char *manufacturer, uint8_t batteryLevel)
+    : _manufacturer(manufacturer), _battery(batteryLevel), _advManager(_connections) {}
 
-void BLEManager::begin(const char *name, bool negotiatePowerSavingConnectionParameters, uint8_t max_connections)
+void BLEManager::begin(const char *name, bool negotiatePowerSavingConnectionParameters, uint8_t maxConnections)
 {
-  _maxConnections = max_connections;
+  _maxConnections = maxConnections;
   _negotiatePowerSavingConnectionParameters = negotiatePowerSavingConnectionParameters;
 
   memset(&_report, 0, sizeof(_report));
@@ -95,7 +95,7 @@ void BLEManager::begin(const char *name, bool negotiatePowerSavingConnectionPara
   _hid->setReportMap((uint8_t *)_hidReportDesc, sizeof(_hidReportDesc));  
   _hid->setBatteryLevel(_battery);
 
-  _advManager.begin(_hid, name, max_connections);
+  _advManager.begin(_hid, name, maxConnections);
 
   // If a bonded peer exists, use directed advertising so Android/Windows
   // auto-reconnects without user interaction after a device reset.
@@ -114,14 +114,14 @@ void BLEManager::end()
   _inputCC = nullptr;
 }
 
-bool BLEManager::isConnected() { return !_connections.empty(); }
+bool BLEManager::isConnected() const { return !_connections.empty(); }
 
 BLEAdvertisingManager& BLEManager::getAdvertisingManager()
 {
   return _advManager;
 }
 
-std::vector<std::string> BLEManager::getConnections()
+std::vector<std::string> BLEManager::getConnections() const
 {
   std::vector<std::string> peers;
   for (const auto &pair : _connections)
@@ -134,14 +134,14 @@ std::vector<std::string> BLEManager::getConnections()
 std::vector<std::string> BLEManager::getBondedAddresses()
 {
   std::vector<std::string> result;
-  int num = NimBLEDevice::getNumBonds();
-  for (int i = 0; i < num; i++)
+  int bondCount = NimBLEDevice::getNumBonds();
+  for (int i = 0; i < bondCount; i++)
   {
     NimBLEAddress addr = NimBLEDevice::getBondedAddress(i);
     result.push_back(addr.toString());
   }
   if (DEBUG)
-    printf("[BLE] getBondedAddresses: %d bonds\n", num);
+    printf("[BLE] getBondedAddresses: %d bonds\n", bondCount);
   return result;
 }
 
@@ -163,17 +163,17 @@ void BLEManager::write(std::string &target, uint8_t key)
 
 void BLEManager::press(std::string &target, uint8_t key)
 {
-  uint8_t scan = 0, modBit = 0;
-  toHID(key, scan, modBit);
+  uint8_t scanCode = 0, modifierBit = 0;
+  toHID(key, scanCode, modifierBit);
   if (DEBUG)
-    printf("[BLE] press: key=0x%02X -> scan=0x%02X mod=0x%02X\n", key, scan, modBit);
-  if (modBit)
-    _report.mod |= modBit;
-  if (scan)
+    printf("[BLE] press: key=0x%02X -> scan=0x%02X mod=0x%02X\n", key, scanCode, modifierBit);
+  if (modifierBit)
+    _report.modifier |= modifierBit;
+  if (scanCode)
     for (int i = 0; i < 6; i++)
       if (!_report.keys[i])
       {
-        _report.keys[i] = scan;
+        _report.keys[i] = scanCode;
         break;
       }
   send(target);
@@ -209,21 +209,18 @@ void BLEManager::setBatteryLevel(uint8_t level)
 
 void BLEManager::clearAllBonds() { NimBLEDevice::deleteAllBonds(); }
 
-void BLEManager::onConnect(NimBLEServer *server, NimBLEConnInfo &conn_info)
+void BLEManager::onConnect(NimBLEServer *server, NimBLEConnInfo &connectionInfo)
 {
-  _connections[conn_info.getIdAddress().toString()] = conn_info.getConnHandle();
+  _connections[connectionInfo.getIdAddress().toString()] = connectionInfo.getConnHandle();
 
   if (DEBUG)
-    printf("[BLE] Connected to %s\n", conn_info.getIdAddress().toString().c_str());
+    printf("[BLE] Connected to %s\n", connectionInfo.getIdAddress().toString().c_str());
 
   _advManager.startCycle();
 
   if (_negotiatePowerSavingConnectionParameters)
   {
-    // Reduce connection interval to 50–100 ms (from default 7.5 ms) to save power.
-    NimBLEAttValue params;
-    // Use NimBLE's updateConnParams: min=40, max=80 (units of 1.25 ms = 50–100 ms)
-    _server->updateConnParams(conn_info.getConnHandle(), 40, 80, 4, 400);
+    _server->updateConnParams(connectionInfo.getConnHandle(), 40, 80, 4, 400);
     printf("[BLE] Requested power-saving connection parameters: interval 50–100 ms, latency 4, timeout 4 s\n");
   }
   else
@@ -232,9 +229,9 @@ void BLEManager::onConnect(NimBLEServer *server, NimBLEConnInfo &conn_info)
   }
 }
 
-void BLEManager::onDisconnect(NimBLEServer *, NimBLEConnInfo &conn_info, int reason)
+void BLEManager::onDisconnect(NimBLEServer *, NimBLEConnInfo &connectionInfo, int reason)
 {
-  _connections.erase(conn_info.getIdAddress().toString());
+  _connections.erase(connectionInfo.getIdAddress().toString());
   if (DEBUG)
     printf("[BLE] Disconnected (reason %d), bonds in NVS: %d\n",
            reason, NimBLEDevice::getNumBonds());
@@ -242,12 +239,12 @@ void BLEManager::onDisconnect(NimBLEServer *, NimBLEConnInfo &conn_info, int rea
   _advManager.startCycle();
 }
 
-void BLEManager::onAuthenticationComplete(NimBLEConnInfo &conn_info)
+void BLEManager::onAuthenticationComplete(NimBLEConnInfo &connectionInfo)
 {
   if (DEBUG)
     printf("[BLE] Auth complete for %s — bonded: %s, bonds stored: %d connections=%d \n",
-           conn_info.getIdAddress().toString().c_str(),
-           conn_info.isBonded() ? "yes" : "no",
+           connectionInfo.getIdAddress().toString().c_str(),
+           connectionInfo.isBonded() ? "yes" : "no",
            NimBLEDevice::getNumBonds(),
            (int)_connections.size());
 }
@@ -306,13 +303,13 @@ void BLEManager::sendCC(std::string &target)
   }
 }
 
-bool BLEManager::isMediaKey(uint8_t k) { return mediaKeyToUsage(k) != 0; }
+bool BLEManager::isMediaKey(uint8_t keyCode) { return mediaKeyToUsage(keyCode) != 0; }
 
 // Maps a KEY_MEDIA_* constant to its USB Consumer Control HID usage code.
 // Returns 0 for non-media keys.
-uint16_t BLEManager::mediaKeyToUsage(uint8_t k)
+uint16_t BLEManager::mediaKeyToUsage(uint8_t keyCode)
 {
-  switch (k)
+  switch (keyCode)
   {
   case KEY_MEDIA_PLAY_PAUSE:
     return 0x00CD; // Play/Pause
@@ -334,30 +331,30 @@ uint16_t BLEManager::mediaKeyToUsage(uint8_t k)
 }
 
 // Convert Arduino-Keyboard / BleKeyboard code → HID scan code + modifier bit
-void BLEManager::toHID(uint8_t k, uint8_t &scan, uint8_t &mod)
+void BLEManager::toHID(uint8_t keyCode, uint8_t &scanCode, uint8_t &modifier)
 {
-  scan = 0;
-  mod = 0;
-  if (k >= 0x80 && k <= 0x87)
+  scanCode = 0;
+  modifier = 0;
+  if (keyCode >= 0x80 && keyCode <= 0x87)
   {
-    mod = 1 << (k - 0x80);
+    modifier = 1 << (keyCode - 0x80);
     return;
   } // modifier keys
-  if (k >= 32 && k <= 126)
+  if (keyCode >= 32 && keyCode <= 126)
   {
-    uint8_t e = _asciiToHid[k - 32];
-    if (e & 0x80)
+    uint8_t entry = _asciiToHid[keyCode - 32];
+    if (entry & 0x80)
     {
-      mod = 0x02;
-      scan = e & 0x7F;
+      modifier = 0x02;
+      scanCode = entry & 0x7F;
     }
     else
     {
-      scan = e;
+      scanCode = entry;
     }
     return;
   }
-  switch (k)
+  switch (keyCode)
   { // special keys
   case 0xB0:
     scan = 0x28;

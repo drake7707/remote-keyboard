@@ -18,18 +18,18 @@ void ButtonManager::begin() {
   _keypad.setHoldTime(SHORT_PRESS_MAX);
 }
 
-void ButtonManager::setShortPressHandler(void (*h)(char btn))           { _shortPressHandler = h; }
-void ButtonManager::setLongPressHandler(void (*h)(char btn))            { _longPressHandler  = h; }
-void ButtonManager::setComboHandler(void (*h)(char held, char pressed)) { _comboHandler      = h; }
+void ButtonManager::setShortPressHandler(void (*handler)(char btn))           { _shortPressHandler = handler; }
+void ButtonManager::setLongPressHandler(void (*handler)(char btn))            { _longPressHandler  = handler; }
+void ButtonManager::setComboHandler(void (*handler)(char held, char pressed)) { _comboHandler      = handler; }
 
 void ButtonManager::setButtonRepeating(char btn, bool repeating) {
-  int i = _btnIdx(btn);
-  if (i >= 0) _repeating[i] = repeating;
+  int buttonIndex = _btnIdx(btn);
+  if (buttonIndex >= 0) _repeating[buttonIndex] = repeating;
 }
 
 void ButtonManager::setButtonLongPressTime(char btn, uint32_t ms) {
-  int i = _btnIdx(btn);
-  if (i >= 0) _longPressTime[i] = ms;
+  int buttonIndex = _btnIdx(btn);
+  if (buttonIndex >= 0) _longPressTime[buttonIndex] = ms;
 }
 
 void ButtonManager::setPinConfiguration(const uint8_t* rowPins, const uint8_t* colPins) {
@@ -38,22 +38,22 @@ void ButtonManager::setPinConfiguration(const uint8_t* rowPins, const uint8_t* c
 }
 
 void ButtonManager::print_keypad_state() {
-  char str[64] = {};
-  size_t pos = 0;
+  char stateStr[64] = {};
+  size_t writePos = 0;
   for (int i = 0; i < LIST_MAX; i++) {
     char     btn = _keypad.key[i].kchar;
-    KeyState ks  = _keypad.key[i].kstate;
+    KeyState keyState  = _keypad.key[i].kstate;
     if (btn == NO_KEY) continue;
-    int bi = _btnIdx(btn);
-    if (bi < 0) continue;
-    if (pos < sizeof(str) - 5) {
-      char st = ks == PRESSED ? 'P' : ks == HOLD ? 'H' : ks == RELEASED ? 'R' : 'I';
-      pos += snprintf(str + pos, sizeof(str) - pos, "%c=%c ", btn, st);
+    int buttonIndex = _btnIdx(btn);
+    if (buttonIndex < 0) continue;
+    if (writePos < sizeof(stateStr) - 5) {
+      char st = keyState == PRESSED ? 'P' : keyState == HOLD ? 'H' : keyState == RELEASED ? 'R' : 'I';
+      writePos += snprintf(stateStr + writePos, sizeof(stateStr) - writePos, "%c=%c ", btn, st);
     }
   }
-  if (strcmp(str, _oldPrint) != 0) {
-    printf("[BUTTON] BUTTON STATE: %s\n", str);
-    strncpy(_oldPrint, str, sizeof(_oldPrint) - 1);
+  if (strcmp(stateStr, _oldPrint) != 0) {
+    printf("[BUTTON] BUTTON STATE: %s\n", stateStr);
+    strncpy(_oldPrint, stateStr, sizeof(_oldPrint) - 1);
   }
 }
 
@@ -64,24 +64,24 @@ void ButtonManager::update() {
   if (DEBUG) print_keypad_state();
 
   for (int i = 0; i < LIST_MAX; i++) {
-    char     btn = _keypad.key[i].kchar;
-    KeyState ks  = _keypad.key[i].kstate;
+    char     btn         = _keypad.key[i].kchar;
+    KeyState keyState    = _keypad.key[i].kstate;
 
     if (btn == NO_KEY) continue;
 
-    int bi = _btnIdx(btn);
-    if (bi < 0) continue;
+    int buttonIndex = _btnIdx(btn);
+    if (buttonIndex < 0) continue;
 
-    switch (ks) {
+    switch (keyState) {
 
       case PRESSED:
-        if (!_active[bi]) {
+        if (!_active[buttonIndex]) {
           if (DEBUG) printf("[BUTTON] %c PRESSED\n", btn);
-          _active[bi]     = true;
-          _pressStart[bi] = now;
-          _lastRepeat[bi] = now;
-          _longFired[bi]  = false;
-          _comboFired[bi] = false;
+          _active[buttonIndex]     = true;
+          _pressStart[buttonIndex] = now;
+          _lastRepeat[buttonIndex] = now;
+          _longFired[buttonIndex]  = false;
+          _comboFired[buttonIndex] = false;
 
           // Combo detection: another button currently active?
           // No timing guard -- both buttons can appear as PRESSED in the same
@@ -91,57 +91,57 @@ void ButtonManager::update() {
           // Both buttons are marked combo-involved to suppress their individual
           // short-press events on release.
           for (int j = 0; j < MAX_BTNS; j++) {
-            if (j == bi || !_active[j]) continue;
+            if (j == buttonIndex || !_active[j]) continue;
             if (_comboHandler) _comboHandler(_btnChar(j), btn);
-            _comboFired[bi] = true;
-            _comboFired[j]  = true;
+            _comboFired[buttonIndex] = true;
+            _comboFired[j]           = true;
             break;
           }
 
-          if (!_comboFired[bi] && _repeating[bi]) {
+          if (!_comboFired[buttonIndex] && _repeating[buttonIndex]) {
             if (_shortPressHandler) _shortPressHandler(btn);
           }
         }
         break;
 
       case HOLD:
-        if (_active[bi]) {
-          uint32_t held = now - _pressStart[bi];
-          if (_repeating[bi]) {
-            if (held >= SHORT_PRESS_MAX && (now - _lastRepeat[bi]) >= REPEAT_MS) {
+        if (_active[buttonIndex]) {
+          uint32_t heldMs = now - _pressStart[buttonIndex];
+          if (_repeating[buttonIndex]) {
+            if (heldMs >= SHORT_PRESS_MAX && (now - _lastRepeat[buttonIndex]) >= REPEAT_MS) {
               if (_shortPressHandler) _shortPressHandler(btn);
-              _lastRepeat[bi] = now;
+              _lastRepeat[buttonIndex] = now;
             }
           } else {
-            if (!_longFired[bi] && !_comboFired[bi] && held >= _longPressTime[bi]) {
+            if (!_longFired[buttonIndex] && !_comboFired[buttonIndex] && heldMs >= _longPressTime[buttonIndex]) {
               if (_longPressHandler) _longPressHandler(btn);
-              _longFired[bi] = true;
+              _longFired[buttonIndex] = true;
             }
           }
         }
         break;
 
       case RELEASED:
-        if (_active[bi]) {
+        if (_active[buttonIndex]) {
           if (DEBUG) printf("[BUTTON] %c RELEASED\n", btn);
-          uint32_t held = now - _pressStart[bi];
-          _active[bi] = false;
+          uint32_t heldMs = now - _pressStart[buttonIndex];
+          _active[buttonIndex] = false;
           // Short press fires on release for a genuine tap (< SHORT_PRESS_MAX,
           // not consumed by a long-press or combo)
-          if (!_longFired[bi] && !_comboFired[bi] && !_repeating[bi] &&
-              held < SHORT_PRESS_MAX) {
+          if (!_longFired[buttonIndex] && !_comboFired[buttonIndex] && !_repeating[buttonIndex] &&
+              heldMs < SHORT_PRESS_MAX) {
             if (_shortPressHandler) _shortPressHandler(btn);
           }
         }
         break;
 
       case IDLE:
-        if (_active[bi]) {
+        if (_active[buttonIndex]) {
           // RELEASED state was missed -- treat as release now
-          uint32_t held = now - _pressStart[bi];
-          _active[bi] = false;
-          if (!_longFired[bi] && !_comboFired[bi] && !_repeating[bi] &&
-              held < SHORT_PRESS_MAX) {
+          uint32_t heldMs = now - _pressStart[buttonIndex];
+          _active[buttonIndex] = false;
+          if (!_longFired[buttonIndex] && !_comboFired[buttonIndex] && !_repeating[buttonIndex] &&
+              heldMs < SHORT_PRESS_MAX) {
             if (_shortPressHandler) _shortPressHandler(btn);
           }
         }
@@ -161,8 +161,8 @@ void ButtonManager::drainButton(int timeoutMs) {
     _keypad.getKeys();
     bool anyActive = false;
     for (int i = 0; i < LIST_MAX; i++) {
-      KeyState ks = _keypad.key[i].kstate;
-      if (ks == PRESSED || ks == HOLD || ks == RELEASED) { anyActive = true; break; }
+      KeyState keyState = _keypad.key[i].kstate;
+      if (keyState == PRESSED || keyState == HOLD || keyState == RELEASED) { anyActive = true; break; }
     }
     if (!anyActive) break;
     vTaskDelay(pdMS_TO_TICKS(10));

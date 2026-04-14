@@ -38,7 +38,7 @@ public:
   // Resets internal state; safe to call at any time.
   void startCycle();
 
-  bool isAdvertising();
+  bool isAdvertising() const;
 
   // BTHome v2 button event types (object ID 0x3A).
   // See https://bthome.io/format/ for the full list.
@@ -64,7 +64,7 @@ public:
 private:
   const std::map<std::string, uint16_t> &_connections;
   uint8_t _maxConnections = 0;
-  int _nextBondIdx = 0;
+  int _nextBondIndex = 0;
   uint32_t _advertisingCycleStartMs = 0;
 
   NimBLEHIDDevice *_hid = nullptr;

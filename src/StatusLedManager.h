@@ -32,8 +32,8 @@ public:
   // between flashes.  The animation is driven by update() calls in the main loop.
   void flashLed(int times, unsigned long length, unsigned long delayTime);
 
-  void setStatus(AppStatus s) { _status = s; }
-  AppStatus getStatus() { return _status; }
+  void setStatus(AppStatus status) { _status = status; }
+  AppStatus getStatus() const { return _status; }
 
   // Reset LED to off and restart the blink timer
   void resetLedState();

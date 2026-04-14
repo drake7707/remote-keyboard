@@ -425,7 +425,7 @@ extern "C" void app_main()
     // Enable automatic light sleep when the CPU is idle.
     // Requires CONFIG_PM_ENABLE=y and CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
     // in sdkconfig.defaults (already set).
-    esp_pm_config_t pm_config = {
+    const esp_pm_config_t pm_config = {
         .max_freq_mhz = 160, // reduce from 160 to save power; BLE and WiFi still work fine at 80 MHz
         .min_freq_mhz = 40,  // lowest valid ESP32-C3 frequency that keeps all peripherals stable
         .light_sleep_enable = true,

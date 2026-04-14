@@ -7,13 +7,13 @@ void StatusLedManager::begin(int pin)
   _ledStateTime = millis_now();
   _status = APP_BT_DISCONNECTED;
 
-  gpio_config_t io = {};
-  io.pin_bit_mask = 1ULL << pin;
-  io.mode = GPIO_MODE_OUTPUT;
-  io.pull_up_en = GPIO_PULLUP_DISABLE;
-  io.pull_down_en = GPIO_PULLDOWN_DISABLE;
-  io.intr_type = GPIO_INTR_DISABLE;
-  gpio_config(&io);
+  gpio_config_t gpioConfig = {};
+  gpioConfig.pin_bit_mask = 1ULL << pin;
+  gpioConfig.mode = GPIO_MODE_OUTPUT;
+  gpioConfig.pull_up_en = GPIO_PULLUP_DISABLE;
+  gpioConfig.pull_down_en = GPIO_PULLDOWN_DISABLE;
+  gpioConfig.intr_type = GPIO_INTR_DISABLE;
+  gpio_config(&gpioConfig);
   gpio_set_level((gpio_num_t)pin, 0);
 }
 

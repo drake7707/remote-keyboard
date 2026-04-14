@@ -19,33 +19,33 @@ bool Keypad::getKeys() {
 uint32_t Keypad::_ms() { return (uint32_t)(esp_timer_get_time() / 1000LL); }
 
 void Keypad::_cfgInputPullup(uint8_t pin) {
-  gpio_config_t io = {};
-  io.pin_bit_mask = 1ULL << pin;
-  io.mode         = GPIO_MODE_INPUT;
-  io.pull_up_en   = GPIO_PULLUP_ENABLE;
-  io.pull_down_en = GPIO_PULLDOWN_DISABLE;
-  io.intr_type    = GPIO_INTR_DISABLE;
-  gpio_config(&io);
+  gpio_config_t gpioConfig = {};
+  gpioConfig.pin_bit_mask = 1ULL << pin;
+  gpioConfig.mode         = GPIO_MODE_INPUT;
+  gpioConfig.pull_up_en   = GPIO_PULLUP_ENABLE;
+  gpioConfig.pull_down_en = GPIO_PULLDOWN_DISABLE;
+  gpioConfig.intr_type    = GPIO_INTR_DISABLE;
+  gpio_config(&gpioConfig);
 }
 
 void Keypad::_cfgOutput(uint8_t pin) {
-  gpio_config_t io = {};
-  io.pin_bit_mask = 1ULL << pin;
-  io.mode         = GPIO_MODE_OUTPUT;
-  io.pull_up_en   = GPIO_PULLUP_DISABLE;
-  io.pull_down_en = GPIO_PULLDOWN_DISABLE;
-  io.intr_type    = GPIO_INTR_DISABLE;
-  gpio_config(&io);
+  gpio_config_t gpioConfig = {};
+  gpioConfig.pin_bit_mask = 1ULL << pin;
+  gpioConfig.mode         = GPIO_MODE_OUTPUT;
+  gpioConfig.pull_up_en   = GPIO_PULLUP_DISABLE;
+  gpioConfig.pull_down_en = GPIO_PULLDOWN_DISABLE;
+  gpioConfig.intr_type    = GPIO_INTR_DISABLE;
+  gpio_config(&gpioConfig);
 }
 
 void Keypad::_cfgInput(uint8_t pin) {
-  gpio_config_t io = {};
-  io.pin_bit_mask = 1ULL << pin;
-  io.mode         = GPIO_MODE_INPUT;
-  io.pull_up_en   = GPIO_PULLUP_DISABLE;
-  io.pull_down_en = GPIO_PULLDOWN_DISABLE;
-  io.intr_type    = GPIO_INTR_DISABLE;
-  gpio_config(&io);
+  gpio_config_t gpioConfig = {};
+  gpioConfig.pin_bit_mask = 1ULL << pin;
+  gpioConfig.mode         = GPIO_MODE_INPUT;
+  gpioConfig.pull_up_en   = GPIO_PULLUP_DISABLE;
+  gpioConfig.pull_down_en = GPIO_PULLDOWN_DISABLE;
+  gpioConfig.intr_type    = GPIO_INTR_DISABLE;
+  gpio_config(&gpioConfig);
 }
 
 // Drive-low column, read rows; active-low => bit set = key pressed.

@@ -3,202 +3,196 @@
 // ---------------------------------------------------------------------------
 // loadConfig -- read all settings from NVS into 'config' in one pass.
 // ---------------------------------------------------------------------------
-void PersistenceManager::loadConfig(Config &c)
+void PersistenceManager::loadConfig(Config &config)
 {
   // --- Keymaps (3 slots x 8 buttons) ---
   const char *namespaces[3] = {"keymap", "keymap2", "keymap3"};
-  for (int km = 0; km < 3; km++)
+  for (int keymap = 0; keymap < 3; keymap++)
   {
-    nvs_handle_t h;
-    bool opened = (nvs_open(namespaces[km], NVS_READONLY, &h) == ESP_OK);
+    nvs_handle_t nvsHandle;
+    bool opened = (nvs_open(namespaces[keymap], NVS_READONLY, &nvsHandle) == ESP_OK);
     for (int i = 0; i < 8; i++)
     {
-      char key[8];
+      char nvsKey[8];
 
-      snprintf(key, sizeof(key), "s%d", i);
-      uint8_t v = Config::DEFAULT_SHORT[i];
+      snprintf(nvsKey, sizeof(nvsKey), "s%d", i);
+      uint8_t value = Config::DEFAULT_SHORT[i];
       if (opened)
-        nvs_get_u8(h, key, &v);
-      c.shortEntries[km][i].key = v;
+        nvs_get_u8(nvsHandle, nvsKey, &value);
+      config.shortEntries[keymap][i].key = value;
 
-      snprintf(key, sizeof(key), "l%d", i);
-      v = Config::DEFAULT_LONG[i];
+      snprintf(nvsKey, sizeof(nvsKey), "l%d", i);
+      value = Config::DEFAULT_LONG[i];
       if (opened)
-        nvs_get_u8(h, key, &v);
-      c.longEntries[km][i].key = v;
+        nvs_get_u8(nvsHandle, nvsKey, &value);
+      config.longEntries[keymap][i].key = value;
 
-      snprintf(key, sizeof(key), "st%d", i);
-      uint8_t tgt = TARGET_SELECT;
+      snprintf(nvsKey, sizeof(nvsKey), "st%d", i);
+      uint8_t rawTarget = TARGET_SELECT;
       if (opened)
-        nvs_get_u8(h, key, &tgt);
-      if (tgt > TARGET_BTHOME)
-        tgt = TARGET_SELECT;
-      c.shortEntries[km][i].target = (KeyTarget)tgt;
+        nvs_get_u8(nvsHandle, nvsKey, &rawTarget);
+      if (rawTarget > TARGET_BTHOME)
+        rawTarget = TARGET_SELECT;
+      config.shortEntries[keymap][i].target = (KeyTarget)rawTarget;
 
-      snprintf(key, sizeof(key), "lt%d", i);
-      tgt = TARGET_SELECT;
+      snprintf(nvsKey, sizeof(nvsKey), "lt%d", i);
+      rawTarget = TARGET_SELECT;
       if (opened)
-        nvs_get_u8(h, key, &tgt);
-      if (tgt > TARGET_BTHOME)
-        tgt = TARGET_SELECT;
-      c.longEntries[km][i].target = (KeyTarget)tgt;
+        nvs_get_u8(nvsHandle, nvsKey, &rawTarget);
+      if (rawTarget > TARGET_BTHOME)
+        rawTarget = TARGET_SELECT;
+      config.longEntries[keymap][i].target = (KeyTarget)rawTarget;
 
-      snprintf(key, sizeof(key), "sm%d", i);
-      c.shortEntries[km][i].mac[0] = '\0';
+      snprintf(nvsKey, sizeof(nvsKey), "sm%d", i);
+      config.shortEntries[keymap][i].mac[0] = '\0';
       if (opened)
       {
-        size_t macLen = sizeof(c.shortEntries[km][i].mac);
-        nvs_get_str(h, key, c.shortEntries[km][i].mac, &macLen);
+        size_t macLen = sizeof(config.shortEntries[keymap][i].mac);
+        nvs_get_str(nvsHandle, nvsKey, config.shortEntries[keymap][i].mac, &macLen);
       }
 
-      snprintf(key, sizeof(key), "lm%d", i);
-      c.longEntries[km][i].mac[0] = '\0';
+      snprintf(nvsKey, sizeof(nvsKey), "lm%d", i);
+      config.longEntries[keymap][i].mac[0] = '\0';
       if (opened)
       {
-        size_t macLen = sizeof(c.longEntries[km][i].mac);
-        nvs_get_str(h, key, c.longEntries[km][i].mac, &macLen);
+        size_t macLen = sizeof(config.longEntries[keymap][i].mac);
+        nvs_get_str(nvsHandle, nvsKey, config.longEntries[keymap][i].mac, &macLen);
       }
     }
     if (opened)
-      nvs_close(h);
+      nvs_close(nvsHandle);
   }
   if (DEBUG)
   {
     printf("[CONFIG] Keymaps loaded from NVS:\n");
-    for (int km = 0; km < 3; km++)
+    for (int keymap = 0; keymap < 3; keymap++)
     {
-      printf("[CONFIG]   Keymap %d:\n", km + 1);
+      printf("[CONFIG]   Keymap %d:\n", keymap + 1);
       for (int i = 0; i < 8; i++)
         printf("[CONFIG]     btn%d  short=%d(tgt=%d mac=%s)  long=%d(tgt=%d mac=%s)\n",
                i + 1,
-               c.shortEntries[km][i].key, (int)c.shortEntries[km][i].target, c.shortEntries[km][i].mac,
-               c.longEntries[km][i].key, (int)c.longEntries[km][i].target, c.longEntries[km][i].mac);
+               config.shortEntries[keymap][i].key, (int)config.shortEntries[keymap][i].target, config.shortEntries[keymap][i].mac,
+               config.longEntries[keymap][i].key, (int)config.longEntries[keymap][i].target, config.longEntries[keymap][i].mac);
     }
   }
 
   // --- Active keymap index ---
   {
-    nvs_handle_t h;
-    uint8_t saved = 1;
-    if (nvs_open("sys", NVS_READONLY, &h) == ESP_OK)
+    nvs_handle_t nvsHandle;
+    uint8_t savedSlot = 1;
+    if (nvs_open("sys", NVS_READONLY, &nvsHandle) == ESP_OK)
     {
-      nvs_get_u8(h, "activekm", &saved);
-      nvs_close(h);
+      nvs_get_u8(nvsHandle, "activekm", &savedSlot);
+      nvs_close(nvsHandle);
     }
-    c.activeKeymap = (saved >= 1 && saved <= 3) ? (int)saved : 1;
+    config.activeKeymap = (savedSlot >= 1 && savedSlot <= 3) ? (int)savedSlot : 1;
   }
   if (DEBUG)
-    printf("[CONFIG] Active keymap loaded: %d\n", c.activeKeymap);
+    printf("[CONFIG] Active keymap loaded: %d\n", config.activeKeymap);
 
   // --- BLE name ---
-  strncpy(c.bleName, DEFAULT_BLE_NAME, sizeof(c.bleName) - 1);
-  c.bleName[sizeof(c.bleName) - 1] = '\0';
+  strncpy(config.bleName, DEFAULT_BLE_NAME, sizeof(config.bleName) - 1);
+  config.bleName[sizeof(config.bleName) - 1] = '\0';
   {
-    nvs_handle_t h;
-    if (nvs_open("config", NVS_READONLY, &h) == ESP_OK)
+    nvs_handle_t nvsHandle;
+    if (nvs_open("config", NVS_READONLY, &nvsHandle) == ESP_OK)
     {
-      size_t len = sizeof(c.bleName);
-      nvs_get_str(h, "blename", c.bleName, &len);
-      nvs_close(h);
+      size_t len = sizeof(config.bleName);
+      nvs_get_str(nvsHandle, "blename", config.bleName, &len);
+      nvs_close(nvsHandle);
     }
   }
   if (DEBUG)
-    printf("[CONFIG] BLE name loaded: %s\n", c.bleName);
+    printf("[CONFIG] BLE name loaded: %s\n", config.bleName);
 
   // --- Flags from "sys" namespace ---
   {
-    nvs_handle_t h;
-    if (nvs_open("sys", NVS_READONLY, &h) == ESP_OK)
+    nvs_handle_t nvsHandle;
+    if (nvs_open("sys", NVS_READONLY, &nvsHandle) == ESP_OK)
     {
       uint8_t flag = 0;
-      nvs_get_u8(h, "baten", &flag);
-      c.batteryEnabled = (flag != 0);
+      nvs_get_u8(nvsHandle, "baten", &flag);
+      config.batteryEnabled = (flag != 0);
 
       flag = 0;
-      nvs_get_u8(h, "blepsen", &flag);
-      c.blePowerSaving = (flag != 0);
+      nvs_get_u8(nvsHandle, "blepsen", &flag);
+      config.blePowerSaving = (flag != 0);
 
-      uint8_t val = 1;
-      nvs_get_u8(h, "maxbleconn", &val);
-      c.maxBLEConnections = (val >= 1 && val <= 3) ? val : 1;
+      uint8_t value = 1;
+      nvs_get_u8(nvsHandle, "maxbleconn", &value);
+      config.maxBLEConnections = (value >= 1 && value <= 3) ? value : 1;
 
-      nvs_close(h);
+      nvs_close(nvsHandle);
     }
   }
   if (DEBUG)
   {
-    printf("[CONFIG] Battery enabled: %s\n", c.batteryEnabled ? "yes" : "no");
-    printf("[CONFIG] BLE power saving: %s\n", c.blePowerSaving ? "yes" : "no");
-    printf("[CONFIG] Max BLE connections: %d\n", c.maxBLEConnections);
+    printf("[CONFIG] Battery enabled: %s\n", config.batteryEnabled ? "yes" : "no");
+    printf("[CONFIG] BLE power saving: %s\n", config.blePowerSaving ? "yes" : "no");
+    printf("[CONFIG] Max BLE connections: %d\n", config.maxBLEConnections);
   }
 }
 
 // ---------------------------------------------------------------------------
 // saveConfig -- write all settings from 'config' to NVS in one pass.
 // ---------------------------------------------------------------------------
-void PersistenceManager::saveConfig(const Config &c)
+void PersistenceManager::saveConfig(const Config &config)
 {
   // --- Keymaps ---
   const char *namespaces[3] = {"keymap", "keymap2", "keymap3"};
-  for (int km = 0; km < 3; km++)
+  for (int keymap = 0; keymap < 3; keymap++)
   {
-    nvs_handle_t h;
-    if (nvs_open(namespaces[km], NVS_READWRITE, &h) != ESP_OK)
+    nvs_handle_t nvsHandle;
+    if (nvs_open(namespaces[keymap], NVS_READWRITE, &nvsHandle) != ESP_OK)
       continue;
     for (int i = 0; i < 8; i++)
     {
-      char key[8];
-      snprintf(key, sizeof(key), "s%d", i);
-      nvs_set_u8(h, key, c.shortEntries[km][i].key);
-      snprintf(key, sizeof(key), "l%d", i);
-      nvs_set_u8(h, key, c.longEntries[km][i].key);
-      snprintf(key, sizeof(key), "st%d", i);
-      nvs_set_u8(h, key, (uint8_t)c.shortEntries[km][i].target);
-      snprintf(key, sizeof(key), "lt%d", i);
-      nvs_set_u8(h, key, (uint8_t)c.longEntries[km][i].target);
-      snprintf(key, sizeof(key), "sm%d", i);
-      nvs_set_str(h, key, c.shortEntries[km][i].mac);
-      snprintf(key, sizeof(key), "lm%d", i);
-      nvs_set_str(h, key, c.longEntries[km][i].mac);
+      char nvsKey[8];
+      snprintf(nvsKey, sizeof(nvsKey), "s%d",  i); nvs_set_u8( nvsHandle, nvsKey, config.shortEntries[keymap][i].key);
+      snprintf(nvsKey, sizeof(nvsKey), "l%d",  i); nvs_set_u8( nvsHandle, nvsKey, config.longEntries[keymap][i].key);
+      snprintf(nvsKey, sizeof(nvsKey), "st%d", i); nvs_set_u8( nvsHandle, nvsKey, (uint8_t)config.shortEntries[keymap][i].target);
+      snprintf(nvsKey, sizeof(nvsKey), "lt%d", i); nvs_set_u8( nvsHandle, nvsKey, (uint8_t)config.longEntries[keymap][i].target);
+      snprintf(nvsKey, sizeof(nvsKey), "sm%d", i); nvs_set_str(nvsHandle, nvsKey, config.shortEntries[keymap][i].mac);
+      snprintf(nvsKey, sizeof(nvsKey), "lm%d", i); nvs_set_str(nvsHandle, nvsKey, config.longEntries[keymap][i].mac);
     }
-    nvs_commit(h);
-    nvs_close(h);
+    nvs_commit(nvsHandle);
+    nvs_close(nvsHandle);
   }
   if (DEBUG)
     printf("[CONFIG] Keymaps saved to NVS.\n");
 
   // --- BLE name ---
   {
-    nvs_handle_t h;
-    if (nvs_open("config", NVS_READWRITE, &h) == ESP_OK)
+    nvs_handle_t nvsHandle;
+    if (nvs_open("config", NVS_READWRITE, &nvsHandle) == ESP_OK)
     {
-      nvs_set_str(h, "blename", c.bleName);
-      nvs_commit(h);
-      nvs_close(h);
+      nvs_set_str(nvsHandle, "blename", config.bleName);
+      nvs_commit(nvsHandle);
+      nvs_close(nvsHandle);
     }
   }
   if (DEBUG)
-    printf("[CONFIG] BLE name saved: %s\n", c.bleName);
+    printf("[CONFIG] BLE name saved: %s\n", config.bleName);
 
   // --- Active keymap + flags ---
   {
-    nvs_handle_t h;
-    if (nvs_open("sys", NVS_READWRITE, &h) == ESP_OK)
+    nvs_handle_t nvsHandle;
+    if (nvs_open("sys", NVS_READWRITE, &nvsHandle) == ESP_OK)
     {
-      nvs_set_u8(h, "activekm", (uint8_t)c.activeKeymap);
-      nvs_set_u8(h, "baten", c.batteryEnabled ? 1 : 0);
-      nvs_set_u8(h, "blepsen", c.blePowerSaving ? 1 : 0);
-      nvs_set_u8(h, "maxbleconn", c.maxBLEConnections);
-      nvs_commit(h);
-      nvs_close(h);
+      nvs_set_u8(nvsHandle, "activekm",   (uint8_t)config.activeKeymap);
+      nvs_set_u8(nvsHandle, "baten",      config.batteryEnabled  ? 1 : 0);
+      nvs_set_u8(nvsHandle, "blepsen",    config.blePowerSaving  ? 1 : 0);
+      nvs_set_u8(nvsHandle, "maxbleconn", config.maxBLEConnections);
+      nvs_commit(nvsHandle);
+      nvs_close(nvsHandle);
     }
   }
   if (DEBUG)
   {
-    printf("[CONFIG] Active keymap saved: %d\n", c.activeKeymap);
-    printf("[CONFIG] Battery enabled saved: %s\n", c.batteryEnabled ? "yes" : "no");
-    printf("[CONFIG] BLE power saving saved: %s\n", c.blePowerSaving ? "yes" : "no");
-    printf("[CONFIG] Max BLE connections saved: %d\n", c.maxBLEConnections);
+    printf("[CONFIG] Active keymap saved: %d\n",    config.activeKeymap);
+    printf("[CONFIG] Battery enabled saved: %s\n",  config.batteryEnabled  ? "yes" : "no");
+    printf("[CONFIG] BLE power saving saved: %s\n", config.blePowerSaving  ? "yes" : "no");
+    printf("[CONFIG] Max BLE connections saved: %d\n", config.maxBLEConnections);
   }
 }
 
@@ -207,12 +201,12 @@ void PersistenceManager::saveConfig(const Config &c)
 // ---------------------------------------------------------------------------
 void PersistenceManager::saveActiveKeymap(int slot)
 {
-  nvs_handle_t h;
-  if (nvs_open("sys", NVS_READWRITE, &h) == ESP_OK)
+  nvs_handle_t nvsHandle;
+  if (nvs_open("sys", NVS_READWRITE, &nvsHandle) == ESP_OK)
   {
-    nvs_set_u8(h, "activekm", (uint8_t)slot);
-    nvs_commit(h);
-    nvs_close(h);
+    nvs_set_u8(nvsHandle, "activekm", (uint8_t)slot);
+    nvs_commit(nvsHandle);
+    nvs_close(nvsHandle);
   }
   if (DEBUG)
     printf("[CONFIG] Active keymap saved: %d\n", slot);
@@ -223,34 +217,34 @@ void PersistenceManager::saveActiveKeymap(int slot)
 // ---------------------------------------------------------------------------
 void PersistenceManager::requestClearBonds()
 {
-  nvs_handle_t h;
-  if (nvs_open("sys", NVS_READWRITE, &h) == ESP_OK)
+  nvs_handle_t nvsHandle;
+  if (nvs_open("sys", NVS_READWRITE, &nvsHandle) == ESP_OK)
   {
-    nvs_set_u8(h, "clrbond", 1);
-    nvs_commit(h);
-    nvs_close(h);
+    nvs_set_u8(nvsHandle, "clrbond", 1);
+    nvs_commit(nvsHandle);
+    nvs_close(nvsHandle);
   }
 }
 
 bool PersistenceManager::isClearBondsRequested()
 {
-  nvs_handle_t h;
+  nvs_handle_t nvsHandle;
   uint8_t flag = 0;
-  if (nvs_open("sys", NVS_READONLY, &h) == ESP_OK)
+  if (nvs_open("sys", NVS_READONLY, &nvsHandle) == ESP_OK)
   {
-    nvs_get_u8(h, "clrbond", &flag);
-    nvs_close(h);
+    nvs_get_u8(nvsHandle, "clrbond", &flag);
+    nvs_close(nvsHandle);
   }
   return flag != 0;
 }
 
 void PersistenceManager::clearClearBondsFlag()
 {
-  nvs_handle_t h;
-  if (nvs_open("sys", NVS_READWRITE, &h) == ESP_OK)
+  nvs_handle_t nvsHandle;
+  if (nvs_open("sys", NVS_READWRITE, &nvsHandle) == ESP_OK)
   {
-    nvs_erase_key(h, "clrbond");
-    nvs_commit(h);
-    nvs_close(h);
+    nvs_erase_key(nvsHandle, "clrbond");
+    nvs_commit(nvsHandle);
+    nvs_close(nvsHandle);
   }
 }

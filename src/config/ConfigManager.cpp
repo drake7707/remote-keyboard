@@ -88,6 +88,34 @@ void ConfigManager::setMaxBLEConnections(uint8_t maxConnections)
   _config.maxBLEConnections = maxConnections;
 }
 
+int ConfigManager::getComboCount(int keymapIdx) const
+{
+  if (keymapIdx < 0 || keymapIdx >= 3) return 0;
+  return (int)_config.comboCounts[keymapIdx];
+}
+
+const ComboEntry &ConfigManager::getComboEntry(int keymapIdx, int comboIdx) const
+{
+  static const ComboEntry empty{};
+  if (keymapIdx < 0 || keymapIdx >= 3 || comboIdx < 0 || comboIdx >= (int)_config.comboCounts[keymapIdx])
+    return empty;
+  return _config.comboEntries[keymapIdx][comboIdx];
+}
+
+ComboEntry &ConfigManager::rawComboEntry(int keymapIdx, int comboIdx)
+{
+  if (keymapIdx < 0 || keymapIdx >= 3) keymapIdx = 0;
+  if (comboIdx < 0 || comboIdx >= Config::MAX_COMBOS) comboIdx = 0;
+  return _config.comboEntries[keymapIdx][comboIdx];
+}
+
+void ConfigManager::setComboCount(int keymapIdx, uint8_t count)
+{
+  if (keymapIdx < 0 || keymapIdx >= 3) return;
+  if (count > Config::MAX_COMBOS) count = Config::MAX_COMBOS;
+  _config.comboCounts[keymapIdx] = count;
+}
+
 void ConfigManager::beginConfigAP(const std::vector<std::string> &bondList,
                                    int batVoltageMv, int batPercent)
 {

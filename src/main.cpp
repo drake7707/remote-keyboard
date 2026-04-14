@@ -332,6 +332,48 @@ void on_combo(char held, char pressed)
       toggleOutputTarget();
     else if (pressed == '6')
       bleManager.getAdvertisingManager().startCycle();
+    return;
+  }
+
+  // Look up configured combos for the active keymap
+  const int keymapIdx = configManager.getActiveKeymap() - 1;
+  const int count     = configManager.getComboCount(keymapIdx);
+  for (int j = 0; j < count; j++)
+  {
+    const ComboEntry &combo = configManager.getComboEntry(keymapIdx, j);
+    if (combo.held != held || combo.pressed != pressed)
+      continue;
+
+    // BT Home target
+    if (combo.target == TARGET_BTHOME)
+    {
+      if (DEBUG)
+        printf("[MAIN] Combo: hold %c + press %c -> BTHome\n", held, pressed);
+      bleManager.getAdvertisingManager().broadcastBTHomeButtonPress(
+          BLEAdvertisingManager::BTHOME_BUTTON_PRESS, Config::btnIndex(pressed) + 1);
+      ledManager.flashLed(1, 150, 0);
+      return;
+    }
+
+    if (combo.key == 0)
+      return;
+
+    std::string target;
+    if (combo.target == TARGET_HID)
+      target = combo.mac;
+    else
+      target = getCurrentOutputTarget();
+
+    if (DEBUG)
+      printf("[MAIN] Combo: hold %c + press %c -> key=0x%02X to %s\n",
+             held, pressed, combo.key, target.empty() ? "BROADCAST" : target.c_str());
+
+    if (bleManager.isConnected())
+    {
+      bleManager.write(target, combo.key);
+      ledManager.flashLed(1, 150, 0);
+    }
+    return;
   }
 }
 

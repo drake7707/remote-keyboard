@@ -251,6 +251,28 @@ void WebUIConfigManager::_handleRoot(httpd_req_t *req)
   }
   cJSON_AddItemToObject(root, "km", keymapArr);
 
+  // Combo entries per keymap
+  cJSON *combosAllArr = cJSON_CreateArray();
+  for (int keymap = 0; keymap < 3; keymap++)
+  {
+    cJSON *combosArr = cJSON_CreateArray();
+    int count = _configManager->getComboCount(keymap);
+    for (int j = 0; j < count; j++)
+    {
+      const ComboEntry &c = _configManager->getComboEntry(keymap, j);
+      cJSON *comboObj = cJSON_CreateObject();
+      cJSON_AddNumberToObject(comboObj, "h", (uint8_t)c.held);
+      cJSON_AddNumberToObject(comboObj, "p", (uint8_t)c.pressed);
+      cJSON_AddNumberToObject(comboObj, "k", c.key);
+      cJSON_AddNumberToObject(comboObj, "t", (uint8_t)c.target);
+      cJSON_AddStringToObject(comboObj, "m", c.mac);
+      cJSON_AddItemToArray(combosArr, comboObj);
+    }
+    cJSON_AddItemToArray(combosAllArr, combosArr);
+  }
+  cJSON_AddItemToObject(root, "combos", combosAllArr);
+  cJSON_AddNumberToObject(root, "maxCombos", Config::MAX_COMBOS);
+
   char *json = cJSON_PrintUnformatted(root);
   cJSON_Delete(root);
 
@@ -330,6 +352,59 @@ void WebUIConfigManager::_handleSave(httpd_req_t *req)
         {
           longEntry.target  = TARGET_SELECT;
           longEntry.mac[0]  = '\0';
+        }
+      }
+    }
+  }
+
+  // Combos (per keymap slot)
+  for (int keymap = 0; keymap < 3; keymap++)
+  {
+    char countKey[16];
+    snprintf(countKey, sizeof(countKey), "cc_%d", keymap + 1);
+    std::string countVal = _formParam(body.c_str(), countKey);
+    int count = countVal.empty() ? 0 : atoi(countVal.c_str());
+    if (count < 0) count = 0;
+    if (count > Config::MAX_COMBOS) count = Config::MAX_COMBOS;
+    _configManager->setComboCount(keymap, (uint8_t)count);
+
+    for (int j = 0; j < count; j++)
+    {
+      char fieldKey[20];
+      ComboEntry &c = _configManager->rawComboEntry(keymap, j);
+
+      snprintf(fieldKey, sizeof(fieldKey), "ch_%d_%d", keymap + 1, j);
+      std::string v = _formParam(body.c_str(), fieldKey);
+      c.held = v.empty() ? 0 : (char)atoi(v.c_str());
+
+      snprintf(fieldKey, sizeof(fieldKey), "cp_%d_%d", keymap + 1, j);
+      v = _formParam(body.c_str(), fieldKey);
+      c.pressed = v.empty() ? 0 : (char)atoi(v.c_str());
+
+      snprintf(fieldKey, sizeof(fieldKey), "ck_%d_%d", keymap + 1, j);
+      v = _formParam(body.c_str(), fieldKey);
+      c.key = v.empty() ? 0 : (uint8_t)atoi(v.c_str());
+
+      snprintf(fieldKey, sizeof(fieldKey), "ct_%d_%d", keymap + 1, j);
+      v = _formParam(body.c_str(), fieldKey);
+      if (!v.empty())
+      {
+        if (v[0] == '1')
+        {
+          c.target = TARGET_HID;
+          std::string mac = (v.size() > 2) ? v.substr(2) : "";
+          strncpy(c.mac, mac.c_str(), sizeof(c.mac) - 1);
+          c.mac[sizeof(c.mac) - 1] = '\0';
+        }
+        else if (v[0] == '2')
+        {
+          c.target = TARGET_BTHOME;
+          c.mac[0] = '\0';
+        }
+        else
+        {
+          c.target = TARGET_SELECT;
+          c.mac[0] = '\0';
         }
       }
     }

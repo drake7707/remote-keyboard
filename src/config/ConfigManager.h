@@ -2,71 +2,71 @@
 
 #include <vector>
 #include <string>
-#include "PersistenceManager.h"
-#include "WebUIConfigManager.h"
+#include "config/Config.h"
+#include "config/PersistenceManager.h"
+#include "config/WebUIConfigManager.h"
 
 // ---------------------------------------------------------------------------
-// ConfigManager -- ties PersistenceManager and WebUIConfigManager together.
-// Preserves the original public API so that callers (main.cpp) need no changes.
+// ConfigManager -- owns the live Config state and ties PersistenceManager
+// (NVS I/O) and WebUIConfigManager (AP + web server) together.
 // ---------------------------------------------------------------------------
 
 class ConfigManager {
 public:
-  // Re-export types from PersistenceManager for callers that use
-  // ConfigManager::KeyTarget, ConfigManager::KeyEntry, etc.
-  using KeyTarget = PersistenceManager::KeyTarget;
-  using KeyEntry  = PersistenceManager::KeyEntry;
+  // The full runtime configuration state.
+  Config config;
 
-  static constexpr PersistenceManager::KeyTarget TARGET_SELECT = PersistenceManager::TARGET_SELECT;
-  static constexpr PersistenceManager::KeyTarget TARGET_HID    = PersistenceManager::TARGET_HID;
-  static constexpr PersistenceManager::KeyTarget TARGET_BTHOME = PersistenceManager::TARGET_BTHOME;
+  // Sub-managers.
+  PersistenceManager persistence;
+  WebUIConfigManager webUI;
 
-  // Inject the StatusLedManager so web handlers can signal progress via LED,
-  // and the firmware version string to display in the web config UI.
+  // Inject the StatusLedManager and firmware version string (passed to webUI).
   void begin(StatusLedManager* led, const char* firmwareVersion);
 
-  // Load all settings from NVS in one call.
-  void loadAll() { persistence.loadAll(); }
+  // Load all settings from NVS into 'config'.
+  void loadAll();
+
+  // Persist the full config to NVS (called by the web UI save handler).
+  void saveConfig();
 
   // ---------------------------------------------------------------------------
-  // Delegated to PersistenceManager
+  // Active keymap
   // ---------------------------------------------------------------------------
-  void    saveKeymap()            { persistence.saveKeymap(); }
-  void    setActiveKeymap(int s)  { persistence.setActiveKeymap(s); }
-  int     getActiveKeymap() const { return persistence.getActiveKeymap(); }
-  void    saveBleName()           { persistence.saveBleName(); }
-  void    saveBatteryEnabled()    { persistence.saveBatteryEnabled(); }
-  void    saveBLEPowerSaving()    { persistence.saveBLEPowerSaving(); }
-  void    saveMaxBLEConnections() { persistence.saveMaxBLEConnections(); }
-  bool    isBatteryEnabled()     const { return persistence.isBatteryEnabled(); }
-  bool    allowBLEPowerSaving()  const { return persistence.allowBLEPowerSaving(); }
-  uint8_t getMaxBLEConnections() const { return persistence.getMaxBLEConnections(); }
-  void    requestClearBonds()    { persistence.requestClearBonds(); }
-  bool    isClearBondsRequested(){ return persistence.isClearBondsRequested(); }
-  void    clearClearBondsFlag()  { persistence.clearClearBondsFlag(); }
-
-  const KeyEntry& getShortEntry(int idx) const { return persistence.getShortEntry(idx); }
-  const KeyEntry& getLongEntry(int idx)  const { return persistence.getLongEntry(idx); }
-  const char*     getBleName()           const { return persistence.getBleName(); }
-
-  static int btnIndex(char key) { return PersistenceManager::btnIndex(key); }
+  void setActiveKeymap(int slot); // updates config + lightweight NVS write
+  int  getActiveKeymap() const { return config.activeKeymap; }
 
   // ---------------------------------------------------------------------------
-  // Delegated to WebUIConfigManager
+  // Keymap read accessors (use the active keymap slot)
+  // ---------------------------------------------------------------------------
+  const KeyEntry& getShortEntry(int idx) const;
+  const KeyEntry& getLongEntry(int idx)  const;
+
+  // Mutable access across all three keymap slots (used by web save handler).
+  KeyEntry& rawShortEntry(int km, int idx);
+  KeyEntry& rawLongEntry(int km, int idx);
+
+  // ---------------------------------------------------------------------------
+  // Convenience getters for the rest of the config
+  // ---------------------------------------------------------------------------
+  const char* getBleName()          const { return config.bleName; }
+  bool        isBatteryEnabled()    const { return config.batteryEnabled; }
+  bool        allowBLEPowerSaving() const { return config.blePowerSaving; }
+  uint8_t     getMaxBLEConnections()const { return config.maxBLEConnections; }
+
+  // ---------------------------------------------------------------------------
+  // Clear-bonds flag (NVS only, no config value)
+  // ---------------------------------------------------------------------------
+  void requestClearBonds()     { persistence.requestClearBonds(); }
+  bool isClearBondsRequested() { return persistence.isClearBondsRequested(); }
+  void clearClearBondsFlag()   { persistence.clearClearBondsFlag(); }
+
+  // ---------------------------------------------------------------------------
+  // Web UI / AP
   // ---------------------------------------------------------------------------
   void beginConfigAP(const std::vector<std::string>& bondList,
-                     int batVoltageMv = -1, int batPercent = -1)
-  {
-    webUI.beginConfigAP(&persistence, bondList, batVoltageMv, batPercent);
-  }
+                     int batVoltageMv = -1, int batPercent = -1);
   void handleClient()           { webUI.handleClient(); }
   void endConfigAP()            { webUI.endConfigAP(); }
   bool isExitRequested() const  { return webUI.isExitRequested(); }
   void setExitRequested(bool v) { webUI.setExitRequested(v); }
-
-  // ---------------------------------------------------------------------------
-  // Sub-managers (exposed for direct access if needed)
-  // ---------------------------------------------------------------------------
-  PersistenceManager  persistence;
-  WebUIConfigManager  webUI;
 };

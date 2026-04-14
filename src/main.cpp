@@ -78,8 +78,8 @@ void applyKeymap()
     {
       // BT Home targets don't use key-repeat (they fire a broadcast on every
       // press event; repeating doesn't make sense for those).
-      bool hasBTHome = (configManager.getShortEntry(i).target == ConfigManager::TARGET_BTHOME ||
-                        configManager.getLongEntry(i).target  == ConfigManager::TARGET_BTHOME);
+      bool hasBTHome = (configManager.getShortEntry(i).target == TARGET_BTHOME ||
+                        configManager.getLongEntry(i).target  == TARGET_BTHOME);
       // Repeat mode when no distinct long-press action is configured (key == 0)
       // and no BT Home target is involved.
       buttonManager.setButtonRepeating(btn, !hasBTHome && configManager.getLongEntry(i).key == 0);
@@ -232,14 +232,14 @@ void on_short_press(char btn)
     return;
   }
 
-  int idx = ConfigManager::btnIndex(btn);
+  int idx = Config::btnIndex(btn);
   if (idx < 0)
     return;
 
   const auto& entry = configManager.getShortEntry(idx);
 
   // BT Home broadcast target: send a BTHome advertisement and return.
-  if (entry.target == ConfigManager::TARGET_BTHOME)
+  if (entry.target == TARGET_BTHOME)
   {
     if (DEBUG)
       printf("[MAIN] Short press: %c -> BTHome broadcast\n", btn);
@@ -254,7 +254,7 @@ void on_short_press(char btn)
 
   // Determine HID target: fixed MAC (TARGET_HID) or runtime selector (TARGET_SELECT).
   std::string target;
-  if (entry.target == ConfigManager::TARGET_HID)
+  if (entry.target == TARGET_HID)
     target = entry.mac; // empty string = broadcast to all
   else
     target = getCurrentOutputTarget(); // TARGET_SELECT
@@ -280,14 +280,14 @@ void on_long_press(char btn)
     return;
   }
 
-  int idx = ConfigManager::btnIndex(btn);
+  int idx = Config::btnIndex(btn);
   if (idx < 0)
     return;
 
   const auto& entry = configManager.getLongEntry(idx);
 
   // BT Home broadcast target: send a BTHome long-press advertisement and return.
-  if (entry.target == ConfigManager::TARGET_BTHOME)
+  if (entry.target == TARGET_BTHOME)
   {
     if (DEBUG)
       printf("[MAIN] Long press: %c -> BTHome broadcast\n", btn);
@@ -299,7 +299,7 @@ void on_long_press(char btn)
 
   // Determine HID target: fixed MAC (TARGET_HID) or runtime selector (TARGET_SELECT).
   std::string target;
-  if (entry.target == ConfigManager::TARGET_HID)
+  if (entry.target == TARGET_HID)
     target = entry.mac; // empty string = broadcast to all
   else
     target = getCurrentOutputTarget(); // TARGET_SELECT

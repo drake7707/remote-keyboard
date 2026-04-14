@@ -42,6 +42,14 @@ public:
   KeyEntry       &rawLongEntry(int keymap, int buttonIndex);
 
   // ---------------------------------------------------------------------------
+  // Combo entries (per keymap slot)
+  // ---------------------------------------------------------------------------
+  int              getComboCount(int keymapIdx) const;
+  const ComboEntry &getComboEntry(int keymapIdx, int comboIdx) const;
+  ComboEntry       &rawComboEntry(int keymapIdx, int comboIdx);
+  void             setComboCount(int keymapIdx, uint8_t count);
+
+  // ---------------------------------------------------------------------------
   // Getters for the rest of the config
   // ---------------------------------------------------------------------------
   const char *getBleName()           const { return _config.bleName; }

@@ -76,6 +76,59 @@ void PersistenceManager::loadConfig(Config &config)
     }
   }
 
+  // --- Combos (3 slots x up to MAX_COMBOS entries) ---
+  {
+    const char *const comboNs[3] = {"combos", "combos2", "combos3"};
+    for (int keymap = 0; keymap < 3; keymap++)
+    {
+      nvs_handle_t nvsHandle;
+      bool opened = (nvs_open(comboNs[keymap], NVS_READONLY, &nvsHandle) == ESP_OK);
+      uint8_t count = 0;
+      if (opened) nvs_get_u8(nvsHandle, "cc", &count);
+      if (count > Config::MAX_COMBOS) count = Config::MAX_COMBOS;
+      config.comboCounts[keymap] = count;
+      for (int j = 0; j < count; j++)
+      {
+        char nvsKey[8];
+        ComboEntry &c = config.comboEntries[keymap][j];
+
+        uint8_t heldVal = 0;
+        snprintf(nvsKey, sizeof(nvsKey), "ch%d", j);
+        if (opened) nvs_get_u8(nvsHandle, nvsKey, &heldVal);
+        c.held = (char)heldVal;
+
+        uint8_t pressedVal = 0;
+        snprintf(nvsKey, sizeof(nvsKey), "cp%d", j);
+        if (opened) nvs_get_u8(nvsHandle, nvsKey, &pressedVal);
+        c.pressed = (char)pressedVal;
+
+        c.key = 0;
+        snprintf(nvsKey, sizeof(nvsKey), "ck%d", j);
+        if (opened) nvs_get_u8(nvsHandle, nvsKey, &c.key);
+
+        uint8_t rawTarget = TARGET_SELECT;
+        snprintf(nvsKey, sizeof(nvsKey), "ct%d", j);
+        if (opened) nvs_get_u8(nvsHandle, nvsKey, &rawTarget);
+        if (rawTarget > TARGET_BTHOME) rawTarget = TARGET_SELECT;
+        c.target = (KeyTarget)rawTarget;
+
+        c.mac[0] = '\0';
+        snprintf(nvsKey, sizeof(nvsKey), "cm%d", j);
+        if (opened)
+        {
+          size_t macLen = sizeof(c.mac);
+          nvs_get_str(nvsHandle, nvsKey, c.mac, &macLen);
+        }
+      }
+      if (opened) nvs_close(nvsHandle);
+    }
+  }
+  if (DEBUG)
+  {
+    for (int keymap = 0; keymap < 3; keymap++)
+      printf("[CONFIG] Combos keymap %d: count=%d\n", keymap + 1, config.comboCounts[keymap]);
+  }
+
   // --- Active keymap index ---
   {
     nvs_handle_t nvsHandle;
@@ -160,6 +213,32 @@ void PersistenceManager::saveConfig(const Config &config)
   }
   if (DEBUG)
     printf("[CONFIG] Keymaps saved to NVS.\n");
+
+  // --- Combos ---
+  {
+    const char *const comboNs[3] = {"combos", "combos2", "combos3"};
+    for (int keymap = 0; keymap < 3; keymap++)
+    {
+      nvs_handle_t nvsHandle;
+      if (nvs_open(comboNs[keymap], NVS_READWRITE, &nvsHandle) != ESP_OK)
+        continue;
+      nvs_set_u8(nvsHandle, "cc", config.comboCounts[keymap]);
+      for (int j = 0; j < config.comboCounts[keymap]; j++)
+      {
+        char nvsKey[8];
+        const ComboEntry &c = config.comboEntries[keymap][j];
+        snprintf(nvsKey, sizeof(nvsKey), "ch%d", j); nvs_set_u8( nvsHandle, nvsKey, (uint8_t)c.held);
+        snprintf(nvsKey, sizeof(nvsKey), "cp%d", j); nvs_set_u8( nvsHandle, nvsKey, (uint8_t)c.pressed);
+        snprintf(nvsKey, sizeof(nvsKey), "ck%d", j); nvs_set_u8( nvsHandle, nvsKey, c.key);
+        snprintf(nvsKey, sizeof(nvsKey), "ct%d", j); nvs_set_u8( nvsHandle, nvsKey, (uint8_t)c.target);
+        snprintf(nvsKey, sizeof(nvsKey), "cm%d", j); nvs_set_str(nvsHandle, nvsKey, c.mac);
+      }
+      nvs_commit(nvsHandle);
+      nvs_close(nvsHandle);
+    }
+  }
+  if (DEBUG)
+    printf("[CONFIG] Combos saved to NVS.\n");
 
   // --- BLE name ---
   {

@@ -145,7 +145,7 @@ std::vector<std::string> BLEManager::getBondedAddresses()
   return result;
 }
 
-void BLEManager::write(std::string &target, uint8_t key)
+void BLEManager::write(const std::string &target, uint8_t key)
 {
   if (DEBUG)
     printf("[BLE] write: key=0x%02X (%d)\n", key, key);
@@ -161,7 +161,7 @@ void BLEManager::write(std::string &target, uint8_t key)
   releaseAll(target);
 }
 
-void BLEManager::press(std::string &target, uint8_t key)
+void BLEManager::press(const std::string &target, uint8_t key)
 {
   uint8_t scanCode = 0, modifierBit = 0;
   toHID(key, scanCode, modifierBit);
@@ -179,13 +179,13 @@ void BLEManager::press(std::string &target, uint8_t key)
   send(target);
 }
 
-void BLEManager::releaseAll(std::string &target)
+void BLEManager::releaseAll(const std::string &target)
 {
   memset(&_report, 0, sizeof(_report));
   send(target);
 }
 
-void BLEManager::pressMedia(std::string &target, uint8_t key)
+void BLEManager::pressMedia(const std::string &target, uint8_t key)
 {
   uint16_t usage = mediaKeyToUsage(key);
   if (DEBUG)
@@ -194,7 +194,7 @@ void BLEManager::pressMedia(std::string &target, uint8_t key)
   sendCC(target);
 }
 
-void BLEManager::releaseAllMedia(std::string &target)
+void BLEManager::releaseAllMedia(const std::string &target)
 {
   _reportCC = 0;
   sendCC(target);
@@ -249,13 +249,13 @@ void BLEManager::onAuthenticationComplete(NimBLEConnInfo &connectionInfo)
            (int)_connections.size());
 }
 
-void BLEManager::send(std::string &target)
+void BLEManager::send(const std::string &target)
 {
   if (DEBUG)
   {
     printf("[BLE] send: connections=%d input=%s | mod=0x%02X keys=[%02X %02X %02X %02X %02X %02X], target=%s\n",
            (int)_connections.size(), _input ? "ok" : "NULL",
-           _report.mod,
+           _report.modifier,
            _report.keys[0], _report.keys[1], _report.keys[2],
            _report.keys[3], _report.keys[4], _report.keys[5], target.c_str());
   }
@@ -278,7 +278,7 @@ void BLEManager::send(std::string &target)
   }
 }
 
-void BLEManager::sendCC(std::string &target)
+void BLEManager::sendCC(const std::string &target)
 {
   if (DEBUG)
     printf("[BLE] sendCC: connections=%d inputCC=%s | usage=0x%04X, target=%s\n",

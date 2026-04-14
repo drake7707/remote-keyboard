@@ -56,7 +56,7 @@ void Keypad::_scanKeys() {
     gpio_set_level((gpio_num_t)_colPins[c], 0);
     for (uint8_t r = 0; r < _rows; r++) {
       uint32_t pressed = !gpio_get_level((gpio_num_t)_rowPins[r]);
-      bitMap[r] = (bitMap[r] & ~(1u << c)) | (pressed << c);
+      _bitMap[r] = (_bitMap[r] & ~(1u << c)) | (pressed << c);
     }
     gpio_set_level((gpio_num_t)_colPins[c], 1);
     _cfgInput(_colPins[c]);
@@ -74,7 +74,7 @@ bool Keypad::_updateList() {
   // Update existing keys and add newly pressed ones
   for (uint8_t r = 0; r < _rows; r++) {
     for (uint8_t c = 0; c < _cols; c++) {
-      bool button  = (bitMap[r] >> c) & 1u;
+      bool button  = (_bitMap[r] >> c) & 1u;
       char keyChar = _keymap[r * _cols + c];
       int  keyCode = r * _cols + c;
       int  idx     = _findByCode(keyCode);
@@ -107,10 +107,10 @@ void Keypad::_nextKeyState(uint8_t idx, bool button) {
   uint32_t now = _ms();
   switch (key[idx].kstate) {
     case IDLE:
-      if (button) { _transitionTo(idx, PRESSED); holdTimer = now; }
+      if (button) { _transitionTo(idx, PRESSED); _holdTimer = now; }
       break;
     case PRESSED:
-      if (now - holdTimer > _holdTime) _transitionTo(idx, HOLD);
+      if (now - _holdTimer > _holdTime) _transitionTo(idx, HOLD);
       else if (!button)                _transitionTo(idx, RELEASED);
       break;
     case HOLD:

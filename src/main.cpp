@@ -97,7 +97,7 @@ void start_config_mode()
 
   // Collect the bond list while NimBLE is still active so the web UI can
   // offer each known peer as an HID target option.
-  auto bondList = bleManager.getBondedAddresses();
+  const auto bondList = bleManager.getBondedAddresses();
 
   // On ESP32-C3 the radio is shared; stop BLE before starting WiFi AP
   bleManager.end();
@@ -109,8 +109,8 @@ void start_config_mode()
   // the on_short_press config-exit check. See drainButton below.
   {
     const bool batAvail = (!LEGACY && configManager.isBatteryEnabled());
-    int batMv = batAvail ? batteryManager.getLastVoltageMv() : -1;
-    int batPct = batAvail ? batteryManager.getLastPercent() : -1;
+    const int batMv  = batAvail ? batteryManager.getLastVoltageMv() : -1;
+    const int batPct = batAvail ? batteryManager.getLastPercent()   : -1;
     configManager.beginConfigAP(bondList, batMv, batPct);
   }
 
@@ -147,8 +147,8 @@ void start_config_mode()
 
 std::string getCurrentOutputTarget()
 {
-  std::vector<std::string> connections = bleManager.getConnections();
-  auto it = std::find(connections.begin(), connections.end(), currentOutputTarget);
+  const std::vector<std::string> connections = bleManager.getConnections();
+  const auto it = std::find(connections.begin(), connections.end(), currentOutputTarget);
 
   // If current target no longer exists → go back to broadcast
   if (it == connections.end())
@@ -161,7 +161,7 @@ std::string getCurrentOutputTarget()
 
 void toggleOutputTarget()
 {
-  std::vector<std::string> connections = bleManager.getConnections();
+  const std::vector<std::string> connections = bleManager.getConnections();
   if (connections.empty())
   {
     currentOutputTarget = "";
@@ -222,7 +222,7 @@ void toggleOutputTarget()
 // Short press: tap (non-repeating buttons), or repeated fire (repeating buttons)
 void on_short_press(char btn)
 {
-  AppStatus status = ledManager.getStatus();
+  const AppStatus status = ledManager.getStatus();
 
   // In config mode a tap of button 4 exits AP mode without saving
   if (status == APP_CONFIG)
@@ -232,7 +232,7 @@ void on_short_press(char btn)
     return;
   }
 
-  int idx = Config::btnIndex(btn);
+  const int idx = Config::btnIndex(btn);
   if (idx < 0)
     return;
 
@@ -280,7 +280,7 @@ void on_long_press(char btn)
     return;
   }
 
-  int idx = Config::btnIndex(btn);
+  const int idx = Config::btnIndex(btn);
   if (idx < 0)
     return;
 
@@ -429,7 +429,8 @@ extern "C" void app_main()
         .min_freq_mhz = 40,  // lowest valid ESP32-C3 frequency that keeps all peripherals stable
         .light_sleep_enable = true,
     };
-    esp_err_t pm_err = esp_pm_configure(&pm_config);
+    if (esp_pm_configure(&pm_config) != ESP_OK)
+      printf("[MAIN] Warning: power management configuration failed\n");
   }
   else
   {
@@ -450,7 +451,7 @@ extern "C" void app_main()
       batteryManager.update();
 
     // Track BLE connection state changes
-    AppStatus status = ledManager.getStatus();
+    const AppStatus status = ledManager.getStatus();
     if (status == APP_CONFIG)
     {
     }

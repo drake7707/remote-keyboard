@@ -29,6 +29,6 @@ public:
   // NVS -- "clear bonds" flag (no associated Config value; inherently stateless)
   // ---------------------------------------------------------------------------
   void requestClearBonds();
-  bool isClearBondsRequested();
+  bool isClearBondsRequested() const;
   void clearClearBondsFlag();
 };

@@ -61,7 +61,7 @@ public:
   // Clear-bonds flag (NVS only, no config value)
   // ---------------------------------------------------------------------------
   void requestClearBonds()     { _persistence.requestClearBonds(); }
-  bool isClearBondsRequested() { return _persistence.isClearBondsRequested(); }
+  bool isClearBondsRequested() const { return _persistence.isClearBondsRequested(); }
   void clearClearBondsFlag()   { _persistence.clearClearBondsFlag(); }
 
   // ---------------------------------------------------------------------------
@@ -72,7 +72,7 @@ public:
   void handleClient()           { _webUI.handleClient(); }
   void endConfigAP()            { _webUI.endConfigAP(); }
   bool isExitRequested() const  { return _webUI.isExitRequested(); }
-  void setExitRequested(bool v) { _webUI.setExitRequested(v); }
+  void setExitRequested(bool requested) { _webUI.setExitRequested(requested); }
 
 private:
   Config             _config;

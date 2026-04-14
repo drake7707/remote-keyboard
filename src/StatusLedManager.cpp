@@ -17,12 +17,12 @@ void StatusLedManager::begin(int pin)
   gpio_set_level((gpio_num_t)pin, 0);
 }
 
-void StatusLedManager::flashLed(int times, unsigned long length, unsigned long delayTime)
+void StatusLedManager::flashLed(int times, uint32_t onDurationMs, uint32_t offDurationMs)
 {
   _flashActive = true;
   _flashRemaining = times;
-  _flashOnTime = length;
-  _flashOffTime = delayTime;
+  _flashOnTime = onDurationMs;
+  _flashOffTime = offDurationMs;
   _flashLedOn = true;
   gpio_set_level((gpio_num_t)_pin, 1);
   _flashStateTime = millis_now();

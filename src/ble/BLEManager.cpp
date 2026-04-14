@@ -64,7 +64,7 @@ static const uint8_t _asciiToHid[95] = {
 };
 
 BLEManager::BLEManager(const char *manufacturer, uint8_t batteryLevel)
-    : _manufacturer(manufacturer), _battery(batteryLevel), _advManager(_connections) {}
+    : _manufacturer(manufacturer), _batteryLevel(batteryLevel), _advManager(_connections) {}
 
 void BLEManager::begin(const char *name, bool negotiatePowerSavingConnectionParameters, uint8_t maxConnections)
 {
@@ -93,7 +93,7 @@ void BLEManager::begin(const char *name, bool negotiatePowerSavingConnectionPara
   _hid->setPnp(0x02, 0xe502, 0xa111, 0x0210);
   _hid->setHidInfo(0x00, 0x02);
   _hid->setReportMap((uint8_t *)_hidReportDesc, sizeof(_hidReportDesc));  
-  _hid->setBatteryLevel(_battery);
+  _hid->setBatteryLevel(_batteryLevel);
 
   _advManager.begin(_hid, name, maxConnections);
 
@@ -124,14 +124,14 @@ BLEAdvertisingManager& BLEManager::getAdvertisingManager()
 std::vector<std::string> BLEManager::getConnections() const
 {
   std::vector<std::string> peers;
-  for (const auto &pair : _connections)
+  for (const auto &connectionEntry : _connections)
   {
-    peers.push_back(pair.first);
+    peers.push_back(connectionEntry.first);
   }
   return peers;
 }
 
-std::vector<std::string> BLEManager::getBondedAddresses()
+std::vector<std::string> BLEManager::getBondedAddresses() const
 {
   std::vector<std::string> result;
   int bondCount = NimBLEDevice::getNumBonds();
@@ -202,7 +202,7 @@ void BLEManager::releaseAllMedia(const std::string &target)
 
 void BLEManager::setBatteryLevel(uint8_t level)
 {
-  _battery = level;
+  _batteryLevel = level;
   if (_hid)
     _hid->setBatteryLevel(level, !_connections.empty());
 }
@@ -267,7 +267,7 @@ void BLEManager::send(const std::string &target)
       _input->notify(); // broadcast to all connected peers
     else if (_connections.find(target) != _connections.end())
     {
-      auto handle = _connections[target];
+      const auto handle = _connections.at(target);
       _input->notify(handle);
     }
     else
@@ -292,7 +292,7 @@ void BLEManager::sendCC(const std::string &target)
       _inputCC->notify(); // broadcast to all connected peers
     else if (_connections.find(target) != _connections.end())
     {
-      auto handle = _connections[target];
+      const auto handle = _connections.at(target);
       _inputCC->notify(handle);
     }
     else

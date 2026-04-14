@@ -30,7 +30,7 @@ public:
   // Schedule a non-blocking LED flash animation.
   // The LED will blink 'times' times, each ON for 'length' ms with 'delayTime' ms
   // between flashes.  The animation is driven by update() calls in the main loop.
-  void flashLed(int times, unsigned long length, unsigned long delayTime);
+  void flashLed(int times, uint32_t onDurationMs, uint32_t offDurationMs);
 
   void setStatus(AppStatus status) { _status = status; }
   AppStatus getStatus() const { return _status; }

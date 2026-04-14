@@ -42,7 +42,7 @@ public:
   void endConfigAP();
 
   bool isExitRequested() const { return _exitConfig; }
-  void setExitRequested(bool v) { _exitConfig = v; }
+  void setExitRequested(bool requested) { _exitConfig = requested; }
 
 private:
   StatusLedManager *_led = nullptr;

@@ -46,7 +46,7 @@ public:
 
   // Return MAC address strings of all bonded devices stored in NVS.
   // Must be called while NimBLE is initialised (before end()).
-  std::vector<std::string> getBondedAddresses();
+  std::vector<std::string> getBondedAddresses() const;
 
   BLEAdvertisingManager& getAdvertisingManager();
 
@@ -76,7 +76,7 @@ public:
 
 private:
   const char *_manufacturer;
-  uint8_t _battery;
+  uint8_t _batteryLevel;
   bool _negotiatePowerSavingConnectionParameters = true;
   uint8_t _maxConnections = MAX_CONCURRENT_CONNECTIONS;
 

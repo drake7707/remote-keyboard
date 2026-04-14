@@ -6,7 +6,7 @@
 void PersistenceManager::loadConfig(Config &config)
 {
   // --- Keymaps (3 slots x 8 buttons) ---
-  const char *namespaces[3] = {"keymap", "keymap2", "keymap3"};
+  const char *const namespaces[3] = {"keymap", "keymap2", "keymap3"};
   for (int keymap = 0; keymap < 3; keymap++)
   {
     nvs_handle_t nvsHandle;
@@ -139,7 +139,7 @@ void PersistenceManager::loadConfig(Config &config)
 void PersistenceManager::saveConfig(const Config &config)
 {
   // --- Keymaps ---
-  const char *namespaces[3] = {"keymap", "keymap2", "keymap3"};
+  const char *const namespaces[3] = {"keymap", "keymap2", "keymap3"};
   for (int keymap = 0; keymap < 3; keymap++)
   {
     nvs_handle_t nvsHandle;
@@ -226,7 +226,7 @@ void PersistenceManager::requestClearBonds()
   }
 }
 
-bool PersistenceManager::isClearBondsRequested()
+bool PersistenceManager::isClearBondsRequested() const
 {
   nvs_handle_t nvsHandle;
   uint8_t flag = 0;

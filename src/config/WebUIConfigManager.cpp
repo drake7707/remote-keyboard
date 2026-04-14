@@ -146,7 +146,7 @@ std::string WebUIConfigManager::_formParam(const char *body, const char *name)
 
 bool WebUIConfigManager::_readBody(httpd_req_t *req, std::string &out)
 {
-  int total = req->content_len;
+  const int total = req->content_len;
   if (total <= 0)
   {
     out.clear();
@@ -156,7 +156,7 @@ bool WebUIConfigManager::_readBody(httpd_req_t *req, std::string &out)
   int received = 0;
   while (received < total)
   {
-    int bytesRead = httpd_req_recv(req, &out[received], total - received);
+    const int bytesRead = httpd_req_recv(req, &out[received], total - received);
     if (bytesRead <= 0)
       return false;
     received += bytesRead;
@@ -442,8 +442,8 @@ void WebUIConfigManager::_handleUpdate(httpd_req_t *req)
 
   while (remaining > 0 && otaSucceeded)
   {
-    size_t toRead = std::min((size_t)remaining, READ_BUF_SIZE);
-    int bytesGot  = httpd_req_recv(req, readBuf, toRead);
+    const size_t toRead = std::min((size_t)remaining, READ_BUF_SIZE);
+    const int bytesGot  = httpd_req_recv(req, readBuf, toRead);
     if (bytesGot <= 0)
     {
       otaSucceeded = false;

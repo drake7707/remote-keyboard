@@ -87,11 +87,13 @@
     .combo-item-tgt{color:#94a3b8;font-size:.76rem}
     .combo-item-remove{padding:5px 10px;background:#fef2f2;border:1px solid #fecaca;border-radius:6px;color:#dc2626;font-size:.8rem;cursor:pointer;font-weight:600;white-space:nowrap;flex-shrink:0;line-height:1}
     .combo-item-remove:hover{background:#fee2e2}
-    .combo-add{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;padding:12px;margin-top:4px}
+    .combo-add{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;padding:12px;margin-top:4px;display:none}
+    .combo-add.open{display:block}
     .combo-add-lbl{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#94a3b8;margin-bottom:8px}
     .combo-add-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
     @media(min-width:520px){.combo-add-row{grid-template-columns:repeat(4,1fr)}}
     .combo-empty{font-size:.82rem;color:#94a3b8;font-style:italic;padding:6px 0;text-align:center}
+    .combo-add-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
   </style>
 </head>
 <body>
@@ -434,9 +436,13 @@
     var key         = parseInt(document.getElementById('newComboKey'     + km).value, 10);
     var tgtVal      = document.getElementById('newComboTgt' + km).value;
 
-    if (heldCode === pressedCode) {
-      alert('The held button and pressed button must be different.');
-      return;
+    // Duplicate check
+    var arr = combos[km - 1];
+    for (var d = 0; d < arr.length; d++) {
+      if (arr[d].h === heldCode && arr[d].p === pressedCode) {
+        alert('A combo for Hold\u00a0Button\u00a0' + (heldCode - 48) + ' + Press\u00a0Button\u00a0' + (pressedCode - 48) + ' already exists.');
+        return;
+      }
     }
 
     var tgtType, mac = '';
@@ -454,13 +460,37 @@
       return;
     }
 
-    if (combos[km - 1].length >= MAX_COMBOS) {
+    if (arr.length >= MAX_COMBOS) {
       alert('Maximum ' + MAX_COMBOS + ' combos per keymap reached.');
       return;
     }
 
     combos[km - 1].push({h: heldCode, p: pressedCode, k: key, t: tgtType, m: mac});
     renderCombos(km);
+    // Collapse the add form after a successful add
+    var addDiv = document.getElementById('comboAddPane' + km);
+    if (addDiv) addDiv.classList.remove('open');
+  }
+
+  function toggleComboAdd(km) {
+    var addDiv = document.getElementById('comboAddPane' + km);
+    if (addDiv) addDiv.classList.toggle('open');
+  }
+
+  // Rebuild the "Press" select to exclude button 4 and the currently selected "Hold" button
+  function updateComboPressed(km) {
+    var heldSel    = document.getElementById('newComboHeld'    + km);
+    var pressedSel = document.getElementById('newComboPressed' + km);
+    if (!heldSel || !pressedSel) return;
+    var heldCode = parseInt(heldSel.value, 10);
+    var curPressed = parseInt(pressedSel.value, 10);
+    var html = '';
+    for (var b = 1; b <= 8; b++) {
+      var code = 48 + b;
+      if (code === heldCode) continue; // same as held — physically impossible
+      html += '<option value="' + code + '"' + (code === curPressed && code !== heldCode ? ' selected' : '') + '>Button ' + b + '</option>';
+    }
+    pressedSel.innerHTML = html;
   }
 
   // Build combo section for each keymap panel
@@ -469,15 +499,20 @@
     for (var b = 1; b <= 8; b++) {
       if (b !== 4) heldOpts += '<option value="' + (48 + b) + '">Button ' + b + '</option>';
     }
-    var pressedOpts = '';
+    // Pressed opts are built dynamically; initial default excludes button matching held (see updateComboPressed)
+    // We seed with all non-btn4 options; updateComboPressed refines them
+    var pressedOptsInit = '';
     for (var b = 1; b <= 8; b++) {
-      pressedOpts += '<option value="' + (48 + b) + '">Button ' + b + '</option>';
+      // Skip button 1 initially (it's the first held option default)
+      if (b !== 1) pressedOptsInit += '<option value="' + (48 + b) + '">Button ' + b + '</option>';
     }
 
     for (var km = 1; km <= 3; km++) {
-      var panel     = document.getElementById('km' + km);
-      var keyRowId  = 'newComboKeyRow' + km;
-      var tgtSelId  = 'newComboTgt'    + km;
+      var panel      = document.getElementById('km' + km);
+      var keyRowId   = 'newComboKeyRow' + km;
+      var tgtSelId   = 'newComboTgt'    + km;
+      var addPaneId  = 'comboAddPane'   + km;
+      var kmCopy     = km; // capture for closure
 
       var sec = document.createElement('div');
       sec.className = 'combo-section';
@@ -486,13 +521,14 @@
         '<p class="combo-hint">Hold one button, then press another to trigger an action.' +
         ' Button\u00a04 held is reserved for system actions and cannot be mapped here.</p>' +
         '<div class="combo-list" id="comboList' + km + '"></div>' +
-        '<div class="combo-add">' +
-          '<div class="combo-add-lbl">Add new combo</div>' +
+        '<button type="button" class="btn btn-outline" style="margin-top:4px" onclick="toggleComboAdd(' + km + ')">&#43; Add Combo</button>' +
+        '<div class="combo-add" id="' + addPaneId + '">' +
+          '<div class="combo-add-lbl">New combo</div>' +
           '<div class="combo-add-row">' +
             '<div><span class="ctrl-lbl">Hold</span>' +
-            '<select id="newComboHeld' + km + '">' + heldOpts + '</select></div>' +
+            '<select id="newComboHeld' + km + '" onchange="updateComboPressed(' + km + ')">' + heldOpts + '</select></div>' +
             '<div><span class="ctrl-lbl">Press</span>' +
-            '<select id="newComboPressed' + km + '">' + pressedOpts + '</select></div>' +
+            '<select id="newComboPressed' + km + '">' + pressedOptsInit + '</select></div>' +
             '<div id="' + keyRowId + '"><span class="ctrl-lbl">Key</span>' +
             '<select id="newComboKey' + km + '"><option value="0">-- select --</option>' +
             buildOpts(0, false) + '</select></div>' +
@@ -500,7 +536,10 @@
             '<select id="' + tgtSelId + '" data-key="' + keyRowId + '" onchange="onTgtChange(this)">' +
             buildTargetOpts(TARGET_SELECT, '') + '</select></div>' +
           '</div>' +
-          '<button type="button" class="btn btn-outline" style="margin-top:4px" onclick="addCombo(' + km + ')">&#43; Add Combo</button>' +
+          '<div class="combo-add-actions">' +
+            '<button type="button" class="btn btn-blue" onclick="addCombo(' + km + ')">&#10003; Confirm</button>' +
+            '<button type="button" class="btn btn-outline" onclick="toggleComboAdd(' + km + ')">Cancel</button>' +
+          '</div>' +
         '</div>';
 
       panel.appendChild(sec);
@@ -545,6 +584,12 @@
       if (sels[3]) { sels[3].value = '0'; onTgtChange(sels[3]); }
     }
     document.getElementById('blename').value = CFG.defaultBleName;
+    // Clear combos for the active keymap
+    combos[curKm - 1] = [];
+    renderCombos(curKm);
+    // Collapse the add pane if it was open
+    var addPane = document.getElementById('comboAddPane' + curKm);
+    if (addPane) addPane.classList.remove('open');
   }
 </script>
 </body>

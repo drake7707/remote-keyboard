@@ -95,6 +95,8 @@ void start_config_mode()
   if (DEBUG)
     printf("[MAIN] Entering config AP mode\n");
 
+  ledManager.flashConfigModeEntry();
+
   // Collect the bond list while NimBLE is still active so the web UI can
   // offer each known peer as an HID target option.
   const auto bondList = bleManager.getBondedAddresses();
@@ -109,8 +111,8 @@ void start_config_mode()
   // the on_short_press config-exit check. See drainButton below.
   {
     const bool batAvail = (!LEGACY && configManager.isBatteryEnabled());
-    const int batMv  = batAvail ? batteryManager.getLastVoltageMv() : -1;
-    const int batPct = batAvail ? batteryManager.getLastPercent()   : -1;
+    const int batMv = batAvail ? batteryManager.getLastVoltageMv() : -1;
+    const int batPct = batAvail ? batteryManager.getLastPercent() : -1;
     configManager.beginConfigAP(bondList, batMv, batPct);
   }
 
@@ -154,7 +156,7 @@ std::string getCurrentOutputTarget()
   if (it == connections.end())
   {
     currentOutputTarget = "";
-    ledManager.flashLed(1, 1000, 100);
+    ledManager.flashTargetChanged(-1);
   }
   return currentOutputTarget;
 }
@@ -165,7 +167,7 @@ void toggleOutputTarget()
   if (connections.empty())
   {
     currentOutputTarget = "";
-    ledManager.flashLed(1, 1000, 100);
+    ledManager.flashTargetChanged(-1);
     return;
   }
   else if (connections.size() == 1)
@@ -173,7 +175,7 @@ void toggleOutputTarget()
     if (DEBUG)
       printf("[MAIN] Only one connection, staying on BROADCAST\n");
     currentOutputTarget = "";
-    ledManager.flashLed(1, 1000, 100);
+    ledManager.flashTargetChanged(-1);
     return;
   }
 
@@ -181,7 +183,7 @@ void toggleOutputTarget()
   if (currentOutputTarget.empty())
   {
     currentOutputTarget = connections[0];
-    ledManager.flashLed(1, 150, 100);
+    ledManager.flashTargetChanged(0);
   }
   else
   {
@@ -191,7 +193,7 @@ void toggleOutputTarget()
     if (it == connections.end())
     {
       currentOutputTarget = "";
-      ledManager.flashLed(1, 1000, 100);
+      ledManager.flashTargetChanged(-1);
     }
     else
     {
@@ -202,12 +204,12 @@ void toggleOutputTarget()
       {
         // Wrap back to broadcast (empty string)
         currentOutputTarget = "";
-        ledManager.flashLed(1, 1000, 100);
+        ledManager.flashTargetChanged(-1);
       }
       else
       {
         currentOutputTarget = connections[index];
-        ledManager.flashLed(index + 1, 150, 100);
+        ledManager.flashTargetChanged(index);
       }
     }
   }
@@ -245,7 +247,7 @@ void on_short_press(char btn)
       printf("[MAIN] Short press: %c -> BTHome broadcast\n", btn);
     bleManager.getAdvertisingManager().broadcastBTHomeButtonPress(
         BLEAdvertisingManager::BTHOME_BUTTON_PRESS, idx + 1);
-    ledManager.flashLed(1, 150, 0);
+    ledManager.flashButtonPressed(idx);
     return;
   }
 
@@ -266,7 +268,7 @@ void on_short_press(char btn)
   if (bleManager.isConnected())
   {
     bleManager.write(target, entry.key);
-    ledManager.flashLed(1, 150, 0);
+    ledManager.flashButtonPressed(idx);
   }
 }
 
@@ -293,7 +295,7 @@ void on_long_press(char btn)
       printf("[MAIN] Long press: %c -> BTHome broadcast\n", btn);
     bleManager.getAdvertisingManager().broadcastBTHomeButtonPress(
         BLEAdvertisingManager::BTHOME_BUTTON_LONG_PRESS, idx + 1);
-    ledManager.flashLed(1, 150, 0);
+    ledManager.flashButtonPressed(idx);
     return;
   }
 
@@ -313,7 +315,7 @@ void on_long_press(char btn)
     if (entry.key != 0)
     {
       bleManager.write(target, entry.key);
-      ledManager.flashLed(1, 150, 0);
+      ledManager.flashButtonPressed(idx);
     }
   }
 }
@@ -337,7 +339,7 @@ void on_combo(char held, char pressed)
 
   // Look up configured combos for the active keymap
   const int keymapIdx = configManager.getActiveKeymap() - 1;
-  const int count     = configManager.getComboCount(keymapIdx);
+  const int count = configManager.getComboCount(keymapIdx);
   for (int j = 0; j < count; j++)
   {
     const ComboEntry &combo = configManager.getComboEntry(keymapIdx, j);
@@ -351,7 +353,7 @@ void on_combo(char held, char pressed)
         printf("[MAIN] Combo: hold %c + press %c -> BTHome\n", held, pressed);
       bleManager.getAdvertisingManager().broadcastBTHomeButtonPress(
           BLEAdvertisingManager::BTHOME_BUTTON_PRESS, Config::btnIndex(pressed) + 1);
-      ledManager.flashLed(1, 150, 0);
+      ledManager.flashButtonPressed(Config::btnIndex(pressed));
       return;
     }
 
@@ -371,7 +373,7 @@ void on_combo(char held, char pressed)
     if (bleManager.isConnected())
     {
       bleManager.write(target, combo.key);
-      ledManager.flashLed(1, 150, 0);
+      ledManager.flashButtonPressed(Config::btnIndex(pressed));
     }
     return;
   }
@@ -393,7 +395,7 @@ void toggleKeymap(char pressed)
       printf("[MAIN] Key combo: hold 4 + press %c -> keymap %d\n", pressed, newKeymap);
     configManager.setActiveKeymap(newKeymap);
     applyKeymap();
-    ledManager.flashLed(newKeymap, 150, 100);
+    ledManager.flashKeymapChanged(newKeymap);
   }
 }
 
@@ -449,7 +451,7 @@ extern "C" void app_main()
 
   applyKeymap();
   // Flash N times to indicate which keymap is active on boot
-  ledManager.flashLed(configManager.getActiveKeymap(), 150, 100);
+  ledManager.flashKeymapChanged(configManager.getActiveKeymap());
 
   buttonManager.setShortPressHandler(on_short_press);
   buttonManager.setLongPressHandler(on_long_press);

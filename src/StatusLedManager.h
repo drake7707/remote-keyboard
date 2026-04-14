@@ -27,10 +27,13 @@ class StatusLedManager
 public:
   void begin(int pin);
 
-  // Schedule a non-blocking LED flash animation.
-  // The LED will blink 'times' times, each ON for 'length' ms with 'delayTime' ms
-  // between flashes.  The animation is driven by update() calls in the main loop.
-  void flashLed(int times, uint32_t onDurationMs, uint32_t offDurationMs);
+  
+  void flashButtonPressed(uint32_t buttonIndex);
+  void flashTargetChanged(uint32_t targetIndex);
+  void flashConfigModeEntry();
+  void flashKeymapChanged(uint32_t keymapIndex);
+
+
 
   void setStatus(AppStatus status) { _status = status; }
   AppStatus getStatus() const { return _status; }
@@ -46,6 +49,12 @@ private:
   AppStatus _status = APP_BT_DISCONNECTED;
   int _ledState = 0;
   uint32_t _ledStateTime = 0;
+
+  // Schedule a non-blocking LED flash animation.
+  // The LED will blink 'times' times, each ON for 'length' ms with 'delayTime' ms
+  // between flashes.  The animation is driven by update() calls in the main loop.
+  void flashLed(int times, uint32_t onDurationMs, uint32_t offDurationMs);
+
 
   // Non-blocking flash animation state
   bool _flashActive = false;

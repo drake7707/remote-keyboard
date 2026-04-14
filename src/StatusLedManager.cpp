@@ -28,6 +28,28 @@ void StatusLedManager::flashLed(int times, uint32_t onDurationMs, uint32_t offDu
   _flashStateTime = millis_now();
 }
 
+void StatusLedManager::flashButtonPressed(uint32_t buttonIndex)
+{
+  flashLed(1, 150, 0);
+}
+
+void StatusLedManager::flashTargetChanged(uint32_t targetIndex)
+{
+  if (targetIndex == -1)
+    flashLed(1, 1000, 100);
+  else
+    flashLed(targetIndex+1, 150, 100);
+}
+
+void  StatusLedManager::flashConfigModeEntry() {
+  flashLed(3, 100, 100);
+}
+
+void StatusLedManager::flashKeymapChanged(uint32_t keymapIndex)
+{
+  flashLed(keymapIndex, 150, 100);
+}
+
 void StatusLedManager::resetLedState()
 {
   _ledState = 0;

@@ -3,14 +3,14 @@
 
    Modified from original BarButtons v1 (https://jaxeadv.com/barbuttons).
    Instead of OTA firmware updates over STA, this version:
-     - Hosts a WiFi Access Point ("RemoteKeyboard-Config")
+     - Hosts a WiFi Access Point ("RemoteButtons-Config")
      - Serves a web page at 192.168.4.1 for configuring the keymap of 8 buttons
      - Persists the keymap to NVS flash via the NVS API
      - Accepts OTA firmware (.bin) uploads directly from the browser
 
    HOW TO CONFIGURE / UPDATE:
      1. Hold Button 4 for ~5 seconds until the LED flashes rapidly.
-     2. Connect to WiFi: SSID "RemoteKeyboard-Config", password "remotekeyboard".
+     2. Connect to WiFi: SSID "RemoteButtons-Config", password "remotebuttons".
      3. Open http://192.168.4.1 in a browser.
      4. Keymap: set Short/Long Press actions per button, then "Save & Reboot".
      5. Firmware: choose a .bin file and press "Flash Firmware".
@@ -44,9 +44,9 @@ const char FIRMWARE_VERSION[] = "1.4.0";
 // ---------------------------------------------------------------------------
 #include "HardwareConfig.h"
 #include "StatusLedManager.h"
-#include "BLEManager.h"
-#include "ConfigManager.h"
-#include "ButtonManager.h"
+#include "ble/BLEManager.h"
+#include "config/ConfigManager.h"
+#include "buttons/ButtonManager.h"
 #include "BatteryManager.h"
 #include "main.h"
 
@@ -78,8 +78,8 @@ void applyKeymap()
     {
       // BT Home targets don't use key-repeat (they fire a broadcast on every
       // press event; repeating doesn't make sense for those).
-      bool hasBTHome = (configManager.getShortEntry(i).target == ConfigManager::TARGET_BTHOME ||
-                        configManager.getLongEntry(i).target  == ConfigManager::TARGET_BTHOME);
+      bool hasBTHome = (configManager.getShortEntry(i).target == TARGET_BTHOME ||
+                        configManager.getLongEntry(i).target == TARGET_BTHOME);
       // Repeat mode when no distinct long-press action is configured (key == 0)
       // and no BT Home target is involved.
       buttonManager.setButtonRepeating(btn, !hasBTHome && configManager.getLongEntry(i).key == 0);
@@ -97,7 +97,7 @@ void start_config_mode()
 
   // Collect the bond list while NimBLE is still active so the web UI can
   // offer each known peer as an HID target option.
-  auto bondList = bleManager.getBondedAddresses();
+  const auto bondList = bleManager.getBondedAddresses();
 
   // On ESP32-C3 the radio is shared; stop BLE before starting WiFi AP
   bleManager.end();
@@ -109,8 +109,8 @@ void start_config_mode()
   // the on_short_press config-exit check. See drainButton below.
   {
     const bool batAvail = (!LEGACY && configManager.isBatteryEnabled());
-    int batMv  = batAvail ? batteryManager.getLastVoltageMv() : -1;
-    int batPct = batAvail ? batteryManager.getLastPercent()   : -1;
+    const int batMv  = batAvail ? batteryManager.getLastVoltageMv() : -1;
+    const int batPct = batAvail ? batteryManager.getLastPercent()   : -1;
     configManager.beginConfigAP(bondList, batMv, batPct);
   }
 
@@ -147,8 +147,8 @@ void start_config_mode()
 
 std::string getCurrentOutputTarget()
 {
-  std::vector<std::string> connections = bleManager.getConnections();
-  auto it = std::find(connections.begin(), connections.end(), currentOutputTarget);
+  const std::vector<std::string> connections = bleManager.getConnections();
+  const auto it = std::find(connections.begin(), connections.end(), currentOutputTarget);
 
   // If current target no longer exists → go back to broadcast
   if (it == connections.end())
@@ -161,7 +161,7 @@ std::string getCurrentOutputTarget()
 
 void toggleOutputTarget()
 {
-  std::vector<std::string> connections = bleManager.getConnections();
+  const std::vector<std::string> connections = bleManager.getConnections();
   if (connections.empty())
   {
     currentOutputTarget = "";
@@ -222,7 +222,7 @@ void toggleOutputTarget()
 // Short press: tap (non-repeating buttons), or repeated fire (repeating buttons)
 void on_short_press(char btn)
 {
-  AppStatus status = ledManager.getStatus();
+  const AppStatus status = ledManager.getStatus();
 
   // In config mode a tap of button 4 exits AP mode without saving
   if (status == APP_CONFIG)
@@ -232,14 +232,14 @@ void on_short_press(char btn)
     return;
   }
 
-  int idx = ConfigManager::btnIndex(btn);
+  const int idx = Config::btnIndex(btn);
   if (idx < 0)
     return;
 
-  const auto& entry = configManager.getShortEntry(idx);
+  const auto &entry = configManager.getShortEntry(idx);
 
   // BT Home broadcast target: send a BTHome advertisement and return.
-  if (entry.target == ConfigManager::TARGET_BTHOME)
+  if (entry.target == TARGET_BTHOME)
   {
     if (DEBUG)
       printf("[MAIN] Short press: %c -> BTHome broadcast\n", btn);
@@ -254,7 +254,7 @@ void on_short_press(char btn)
 
   // Determine HID target: fixed MAC (TARGET_HID) or runtime selector (TARGET_SELECT).
   std::string target;
-  if (entry.target == ConfigManager::TARGET_HID)
+  if (entry.target == TARGET_HID)
     target = entry.mac; // empty string = broadcast to all
   else
     target = getCurrentOutputTarget(); // TARGET_SELECT
@@ -280,14 +280,14 @@ void on_long_press(char btn)
     return;
   }
 
-  int idx = ConfigManager::btnIndex(btn);
+  const int idx = Config::btnIndex(btn);
   if (idx < 0)
     return;
 
-  const auto& entry = configManager.getLongEntry(idx);
+  const auto &entry = configManager.getLongEntry(idx);
 
   // BT Home broadcast target: send a BTHome long-press advertisement and return.
-  if (entry.target == ConfigManager::TARGET_BTHOME)
+  if (entry.target == TARGET_BTHOME)
   {
     if (DEBUG)
       printf("[MAIN] Long press: %c -> BTHome broadcast\n", btn);
@@ -299,7 +299,7 @@ void on_long_press(char btn)
 
   // Determine HID target: fixed MAC (TARGET_HID) or runtime selector (TARGET_SELECT).
   std::string target;
-  if (entry.target == ConfigManager::TARGET_HID)
+  if (entry.target == TARGET_HID)
     target = entry.mac; // empty string = broadcast to all
   else
     target = getCurrentOutputTarget(); // TARGET_SELECT
@@ -383,8 +383,8 @@ extern "C" void app_main()
   esp_netif_init();
   esp_event_loop_create_default();
 
-  configManager.begin(&ledManager, FIRMWARE_VERSION);
-  configManager.loadAll();
+  configManager.begin(FIRMWARE_VERSION);
+  configManager.loadConfig();
 
   bleManager.begin(configManager.getBleName(), configManager.allowBLEPowerSaving(), configManager.getMaxBLEConnections());
 
@@ -404,6 +404,7 @@ extern "C" void app_main()
   buttonManager.setPinConfiguration(getKeypadRowPins(LEGACY),
                                     getKeypadColPins(LEGACY));
   buttonManager.begin();
+
   applyKeymap();
   // Flash N times to indicate which keymap is active on boot
   ledManager.flashLed(configManager.getActiveKeymap(), 150, 100);
@@ -423,12 +424,13 @@ extern "C" void app_main()
     // Enable automatic light sleep when the CPU is idle.
     // Requires CONFIG_PM_ENABLE=y and CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
     // in sdkconfig.defaults (already set).
-    esp_pm_config_t pm_config = {
+    const esp_pm_config_t pm_config = {
         .max_freq_mhz = 160, // reduce from 160 to save power; BLE and WiFi still work fine at 80 MHz
         .min_freq_mhz = 40,  // lowest valid ESP32-C3 frequency that keeps all peripherals stable
         .light_sleep_enable = true,
     };
-    esp_err_t pm_err = esp_pm_configure(&pm_config);
+    if (esp_pm_configure(&pm_config) != ESP_OK)
+      printf("[MAIN] Warning: power management configuration failed\n");
   }
   else
   {
@@ -444,11 +446,12 @@ extern "C" void app_main()
   while (true)
   {
     buttonManager.update();
+
     if (batteryEnabled)
       batteryManager.update();
 
     // Track BLE connection state changes
-    AppStatus status = ledManager.getStatus();
+    const AppStatus status = ledManager.getStatus();
     if (status == APP_CONFIG)
     {
     }

@@ -44,9 +44,9 @@ public:
 
   void begin();
 
-  void setShortPressHandler(void (*h)(char btn));
-  void setLongPressHandler(void (*h)(char btn));
-  void setComboHandler(void (*h)(char held, char pressed));
+  void setShortPressHandler(void (*handler)(char btn));
+  void setLongPressHandler(void (*handler)(char btn));
+  void setComboHandler(void (*handler)(char held, char pressed));
 
   // repeating=true  : onShortPress fires immediately on press-down, then repeats
   //                   at REPEAT_MS intervals after SHORT_PRESS_MAX ms of hold.

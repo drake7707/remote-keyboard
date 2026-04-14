@@ -3,10 +3,10 @@
 BLEAdvertisingManager::BLEAdvertisingManager(const std::map<std::string, uint16_t> &connections)
     : _connections(connections) {}
 
-void BLEAdvertisingManager::begin(NimBLEHIDDevice *hid, const char *deviceName, uint8_t maxConnections)
+void BLEAdvertisingManager::begin(NimBLEHIDDevice *hidDevice, const char *deviceName, uint8_t maxConnections)
 {
   _maxConnections = maxConnections;
-  _hid = hid;
+  _hid = hidDevice;
   _deviceName = deviceName;
 
   configureHIDAdvertising();
@@ -20,29 +20,29 @@ void BLEAdvertisingManager::begin(NimBLEHIDDevice *hid, const char *deviceName, 
 
 void BLEAdvertisingManager::configureHIDAdvertising()
 {
-  NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
+  NimBLEAdvertising *advertising = NimBLEDevice::getAdvertising();
 
   // Build the primary advertisement payload explicitly so we can switch
   // back to it cleanly after a BTHome broadcast (NimBLE has no public API
   // to clear custom advertisement data once set).
-  NimBLEAdvertisementData advData;
+  NimBLEAdvertisementData advertisementData;
   // 0x06 = LE General Discoverable Mode | BR/EDR Not Supported
-  advData.setFlags(0x06);
+  advertisementData.setFlags(0x06);
   // Appearance: HID Keyboard (0x03C1).  Full AD structure layout:
   //   [0x03]  length  = 3 bytes follow (type + 2-byte value)
   //   [0x19]  type    = Appearance
   //   [0xC1]  value LSB of 0x03C1 (HID Keyboard appearance)
   //   [0x03]  value MSB of 0x03C1
   uint8_t appearance[] = {0x03, 0x19, 0xC1, 0x03};
-  advData.addData(appearance, sizeof(appearance));
-  advData.addServiceUUID(_hid->getHidService()->getUUID());
-  adv->setAdvertisementData(advData);
+  advertisementData.addData(appearance, sizeof(appearance));
+  advertisementData.addServiceUUID(_hid->getHidService()->getUUID());
+  advertising->setAdvertisementData(advertisementData);
 
   // Include device name in scan response so Android/Windows show it in
   // the pairing list and recognise it as a keyboard.
-  NimBLEAdvertisementData scanData;
-  scanData.setName(_deviceName);
-  adv->setScanResponseData(scanData);
+  NimBLEAdvertisementData scanResponseData;
+  scanResponseData.setName(_deviceName);
+  advertising->setScanResponseData(scanResponseData);
 }
 
 void BLEAdvertisingManager::startCycle()
@@ -54,7 +54,7 @@ void BLEAdvertisingManager::startCycle()
     return;
   }
 
-  _nextBondIdx = 0;
+  _nextBondIndex = 0;
   _advertisingCycleStartMs = pdTICKS_TO_MS(xTaskGetTickCount());
 
   if (DEBUG)
@@ -102,12 +102,12 @@ void BLEAdvertisingManager::advance()
     return;
   }
 
-  NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
+  NimBLEAdvertising *advertising = NimBLEDevice::getAdvertising();
 
   // Guard: onConnect() calls startCycle() which may already have started a
   // new advertising step before this callback fires for the previous directed
   // advertisement that just connected.
-  if (adv->isAdvertising())
+  if (advertising->isAdvertising())
   {
     if (DEBUG)
       printf("[BLE ADV] Advertising already active, skipping advance\n");
@@ -131,25 +131,25 @@ void BLEAdvertisingManager::advance()
     remainingBudgetMs = MAX_ADVERTISING_DURATION_AFTER_ALREADY_CONNECTED_MS - elapsed;
   }
 
-  // Try each unconnected bonded peer in order, starting from _nextBondIdx.
-  int count = NimBLEDevice::getNumBonds();
-  for (int i = _nextBondIdx; i < count; i++)
+  // Try each unconnected bonded peer in order, starting from _nextBondIndex.
+  int bondCount = NimBLEDevice::getNumBonds();
+  for (int i = _nextBondIndex; i < bondCount; i++)
   {
     NimBLEAddress addr = NimBLEDevice::getBondedAddress(i);
-    std::string mac = addr.toString();
+    std::string peerAddress = addr.toString();
 
-    if (_connections.find(mac) != _connections.end())
+    if (_connections.find(peerAddress) != _connections.end())
       continue; // already connected, skip to next bond
 
-    _nextBondIdx = i + 1;
-    uint32_t dirDuration = (remainingBudgetMs == 0)
-                               ? DIRECTED_ADV_STEP_DURATION_MS
-                               : std::min(remainingBudgetMs, DIRECTED_ADV_STEP_DURATION_MS);
+    _nextBondIndex = i + 1;
+    uint32_t directedDuration = (remainingBudgetMs == 0)
+                                    ? DIRECTED_ADV_STEP_DURATION_MS
+                                    : std::min(remainingBudgetMs, DIRECTED_ADV_STEP_DURATION_MS);
 
     if (DEBUG)
-      printf("[BLE ADV] Start directed advertising to bonded peer %s for %lu ms\n", mac.c_str(), dirDuration);
+      printf("[BLE ADV] Start directed advertising to bonded peer %s for %lu ms\n", peerAddress.c_str(), directedDuration);
 
-    adv->start(dirDuration, &addr);
+    advertising->start(directedDuration, &addr);
     return;
   }
 
@@ -157,10 +157,10 @@ void BLEAdvertisingManager::advance()
   if (DEBUG)
     printf("[BLE ADV] All bonds tried, starting undirected advertising for %lu ms\n", remainingBudgetMs);
 
-  adv->start(remainingBudgetMs);
+  advertising->start(remainingBudgetMs);
 }
 
-bool BLEAdvertisingManager::isAdvertising()
+bool BLEAdvertisingManager::isAdvertising() const
 {
   return NimBLEDevice::getAdvertising()->isAdvertising();
 }
@@ -174,11 +174,11 @@ void BLEAdvertisingManager::broadcastBTHomeButtonPress(uint8_t eventType, uint8_
     return;
   }
 
-  NimBLEAdvertising *adv = NimBLEDevice::getAdvertising();
+  NimBLEAdvertising *advertising = NimBLEDevice::getAdvertising();
 
-  bool wasAdvertising = adv->isAdvertising();
+  bool wasAdvertising = advertising->isAdvertising();
   if (wasAdvertising)
-    adv->stop();
+    advertising->stop();
 
   // Record whether HID advertising was running so we can restore it after the
   // broadcast.  If a BTHome broadcast is already in flight (rapid button press)
@@ -231,10 +231,10 @@ void BLEAdvertisingManager::broadcastBTHomeButtonPress(uint8_t eventType, uint8_
   NimBLEAdvertisementData btHomeData;
   btHomeData.setServiceData(NimBLEUUID((uint16_t)0xFCD2),
                             std::string(reinterpret_cast<char *>(payload), sizeof(payload)));
-  adv->setAdvertisementData(btHomeData);
+  advertising->setAdvertisementData(btHomeData);
 
   // Clear scan response for the BTHome broadcast — HA needs only the service data.
-  adv->setScanResponseData(NimBLEAdvertisementData());
+  advertising->setScanResponseData(NimBLEAdvertisementData());
 
   _btHomeBroadcastActive = true;
 
@@ -242,5 +242,5 @@ void BLEAdvertisingManager::broadcastBTHomeButtonPress(uint8_t eventType, uint8_
     printf("[BLE ADV] BTHome: broadcasting button %d event 0x%02X packet_id %d for %lu ms\n",
            button, eventType, _btHomePacketId, BTHOME_BROADCAST_DURATION_MS);
 
-  adv->start(BTHOME_BROADCAST_DURATION_MS);
+  advertising->start(BTHOME_BROADCAST_DURATION_MS);
 }

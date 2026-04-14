@@ -24,9 +24,7 @@ struct Key {
 
 class Keypad {
 public:
-  uint32_t bitMap[10] = {};
   Key      key[LIST_MAX];
-  uint32_t holdTimer  = 0;
 
   Keypad(char* userKeymap, uint8_t* row, uint8_t* col, uint8_t numRows, uint8_t numCols);
 
@@ -41,6 +39,8 @@ private:
   uint8_t* _colPins;
   uint8_t  _rows, _cols;
   uint32_t _debounceTime, _holdTime, _startTime;
+  uint32_t _bitMap[10] = {};
+  uint32_t _holdTimer  = 0;
 
   static uint32_t _ms();
   static void _cfgInputPullup(uint8_t pin);

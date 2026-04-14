@@ -13,9 +13,9 @@ static inline uint32_t millis_now() { return (uint32_t)(esp_timer_get_time() / 1
 // ---------------------------------------------------------------------------
 enum AppStatus
 {
-  APP_BT_DISCONNECTED = 0, // Not connected to BT, advertising if not in config mode
-  APP_CONFIG = 1,          // Config mode (AP active, rapid blink)
-  APP_CONNECTED = 2,        // BT connected, main menu
+  APP_BT_DISCONNECTED = 0,         // Not connected to BT, advertising if not in config mode
+  APP_CONFIG = 1,                  // Config mode (AP active, rapid blink)
+  APP_CONNECTED = 2,               // BT connected, main menu
   APP_BT_CONNECTED_ADVERTISING = 3 // BT connected, advertising while already connected
 };
 
@@ -30,10 +30,10 @@ public:
   // Schedule a non-blocking LED flash animation.
   // The LED will blink 'times' times, each ON for 'length' ms with 'delayTime' ms
   // between flashes.  The animation is driven by update() calls in the main loop.
-  void flashLed(int times, unsigned long length, unsigned long delayTime);
+  void flashLed(int times, uint32_t onDurationMs, uint32_t offDurationMs);
 
-  void setStatus(AppStatus s) { _status = s; }
-  AppStatus getStatus() { return _status; }
+  void setStatus(AppStatus status) { _status = status; }
+  AppStatus getStatus() const { return _status; }
 
   // Reset LED to off and restart the blink timer
   void resetLedState();
@@ -58,7 +58,7 @@ private:
   int _ledDelays[4][2] = {
       {500, 500},  // APP_BT_DISCONNECTED
       {100, 3000}, // APP_CONFIG
-      {0, 0},  // APP_CONNECTED
+      {0, 0},      // APP_CONNECTED
       {2000, 100}  // APP_BT_CONNECTED_ADVERTISING
   };
 };

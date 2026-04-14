@@ -2,8 +2,6 @@
 
 // ---------------------------------------------------------------------------
 // Key code constants
-// Same numeric values as BleKeyboard.h / Arduino Keyboard.h so NVS keymap
-// data stored by earlier firmware remains valid.
 // ---------------------------------------------------------------------------
 #define KEY_LEFT_CTRL    0x80
 #define KEY_LEFT_SHIFT   0x81

@@ -1,4 +1,4 @@
-#include "BLEManager.h"
+#include "ble/BLEManager.h"
 
 // ---------------------------------------------------------------------------
 // Combined HID report descriptor:
@@ -63,12 +63,12 @@ static const uint8_t _asciiToHid[95] = {
     0xAF, 0xB1, 0xB0, 0xB5                                      // {-~  123-126
 };
 
-BLEManager::BLEManager(const char *mfr, uint8_t bat)
-    : _manufacturer(mfr), _battery(bat), _advManager(_connections) {}
+BLEManager::BLEManager(const char *manufacturer, uint8_t batteryLevel)
+    : _manufacturer(manufacturer), _batteryLevel(batteryLevel), _advManager(_connections) {}
 
-void BLEManager::begin(const char *name, bool negotiatePowerSavingConnectionParameters, uint8_t max_connections)
+void BLEManager::begin(const char *name, bool negotiatePowerSavingConnectionParameters, uint8_t maxConnections)
 {
-  _maxConnections = max_connections;
+  _maxConnections = maxConnections;
   _negotiatePowerSavingConnectionParameters = negotiatePowerSavingConnectionParameters;
 
   memset(&_report, 0, sizeof(_report));
@@ -93,9 +93,9 @@ void BLEManager::begin(const char *name, bool negotiatePowerSavingConnectionPara
   _hid->setPnp(0x02, 0xe502, 0xa111, 0x0210);
   _hid->setHidInfo(0x00, 0x02);
   _hid->setReportMap((uint8_t *)_hidReportDesc, sizeof(_hidReportDesc));  
-  _hid->setBatteryLevel(_battery);
+  _hid->setBatteryLevel(_batteryLevel);
 
-  _advManager.begin(_hid, name, max_connections);
+  _advManager.begin(_hid, name, maxConnections);
 
   // If a bonded peer exists, use directed advertising so Android/Windows
   // auto-reconnects without user interaction after a device reset.
@@ -114,38 +114,38 @@ void BLEManager::end()
   _inputCC = nullptr;
 }
 
-bool BLEManager::isConnected() { return !_connections.empty(); }
+bool BLEManager::isConnected() const { return !_connections.empty(); }
 
 BLEAdvertisingManager& BLEManager::getAdvertisingManager()
 {
   return _advManager;
 }
 
-std::vector<std::string> BLEManager::getConnections()
+std::vector<std::string> BLEManager::getConnections() const
 {
   std::vector<std::string> peers;
-  for (const auto &pair : _connections)
+  for (const auto &connectionEntry : _connections)
   {
-    peers.push_back(pair.first);
+    peers.push_back(connectionEntry.first);
   }
   return peers;
 }
 
-std::vector<std::string> BLEManager::getBondedAddresses()
+std::vector<std::string> BLEManager::getBondedAddresses() const
 {
   std::vector<std::string> result;
-  int num = NimBLEDevice::getNumBonds();
-  for (int i = 0; i < num; i++)
+  int bondCount = NimBLEDevice::getNumBonds();
+  for (int i = 0; i < bondCount; i++)
   {
     NimBLEAddress addr = NimBLEDevice::getBondedAddress(i);
     result.push_back(addr.toString());
   }
   if (DEBUG)
-    printf("[BLE] getBondedAddresses: %d bonds\n", num);
+    printf("[BLE] getBondedAddresses: %d bonds\n", bondCount);
   return result;
 }
 
-void BLEManager::write(std::string &target, uint8_t key)
+void BLEManager::write(const std::string &target, uint8_t key)
 {
   if (DEBUG)
     printf("[BLE] write: key=0x%02X (%d)\n", key, key);
@@ -161,31 +161,31 @@ void BLEManager::write(std::string &target, uint8_t key)
   releaseAll(target);
 }
 
-void BLEManager::press(std::string &target, uint8_t key)
+void BLEManager::press(const std::string &target, uint8_t key)
 {
-  uint8_t scan = 0, modBit = 0;
-  toHID(key, scan, modBit);
+  uint8_t scanCode = 0, modifierBit = 0;
+  toHID(key, scanCode, modifierBit);
   if (DEBUG)
-    printf("[BLE] press: key=0x%02X -> scan=0x%02X mod=0x%02X\n", key, scan, modBit);
-  if (modBit)
-    _report.mod |= modBit;
-  if (scan)
+    printf("[BLE] press: key=0x%02X -> scan=0x%02X mod=0x%02X\n", key, scanCode, modifierBit);
+  if (modifierBit)
+    _report.modifier |= modifierBit;
+  if (scanCode)
     for (int i = 0; i < 6; i++)
       if (!_report.keys[i])
       {
-        _report.keys[i] = scan;
+        _report.keys[i] = scanCode;
         break;
       }
   send(target);
 }
 
-void BLEManager::releaseAll(std::string &target)
+void BLEManager::releaseAll(const std::string &target)
 {
   memset(&_report, 0, sizeof(_report));
   send(target);
 }
 
-void BLEManager::pressMedia(std::string &target, uint8_t key)
+void BLEManager::pressMedia(const std::string &target, uint8_t key)
 {
   uint16_t usage = mediaKeyToUsage(key);
   if (DEBUG)
@@ -194,7 +194,7 @@ void BLEManager::pressMedia(std::string &target, uint8_t key)
   sendCC(target);
 }
 
-void BLEManager::releaseAllMedia(std::string &target)
+void BLEManager::releaseAllMedia(const std::string &target)
 {
   _reportCC = 0;
   sendCC(target);
@@ -202,28 +202,25 @@ void BLEManager::releaseAllMedia(std::string &target)
 
 void BLEManager::setBatteryLevel(uint8_t level)
 {
-  _battery = level;
+  _batteryLevel = level;
   if (_hid)
     _hid->setBatteryLevel(level, !_connections.empty());
 }
 
 void BLEManager::clearAllBonds() { NimBLEDevice::deleteAllBonds(); }
 
-void BLEManager::onConnect(NimBLEServer *server, NimBLEConnInfo &conn_info)
+void BLEManager::onConnect(NimBLEServer *server, NimBLEConnInfo &connectionInfo)
 {
-  _connections[conn_info.getIdAddress().toString()] = conn_info.getConnHandle();
+  _connections[connectionInfo.getIdAddress().toString()] = connectionInfo.getConnHandle();
 
   if (DEBUG)
-    printf("[BLE] Connected to %s\n", conn_info.getIdAddress().toString().c_str());
+    printf("[BLE] Connected to %s\n", connectionInfo.getIdAddress().toString().c_str());
 
   _advManager.startCycle();
 
   if (_negotiatePowerSavingConnectionParameters)
   {
-    // Reduce connection interval to 50–100 ms (from default 7.5 ms) to save power.
-    NimBLEAttValue params;
-    // Use NimBLE's updateConnParams: min=40, max=80 (units of 1.25 ms = 50–100 ms)
-    _server->updateConnParams(conn_info.getConnHandle(), 40, 80, 4, 400);
+    _server->updateConnParams(connectionInfo.getConnHandle(), 40, 80, 4, 400);
     printf("[BLE] Requested power-saving connection parameters: interval 50–100 ms, latency 4, timeout 4 s\n");
   }
   else
@@ -232,9 +229,9 @@ void BLEManager::onConnect(NimBLEServer *server, NimBLEConnInfo &conn_info)
   }
 }
 
-void BLEManager::onDisconnect(NimBLEServer *, NimBLEConnInfo &conn_info, int reason)
+void BLEManager::onDisconnect(NimBLEServer *, NimBLEConnInfo &connectionInfo, int reason)
 {
-  _connections.erase(conn_info.getIdAddress().toString());
+  _connections.erase(connectionInfo.getIdAddress().toString());
   if (DEBUG)
     printf("[BLE] Disconnected (reason %d), bonds in NVS: %d\n",
            reason, NimBLEDevice::getNumBonds());
@@ -242,23 +239,23 @@ void BLEManager::onDisconnect(NimBLEServer *, NimBLEConnInfo &conn_info, int rea
   _advManager.startCycle();
 }
 
-void BLEManager::onAuthenticationComplete(NimBLEConnInfo &conn_info)
+void BLEManager::onAuthenticationComplete(NimBLEConnInfo &connectionInfo)
 {
   if (DEBUG)
     printf("[BLE] Auth complete for %s — bonded: %s, bonds stored: %d connections=%d \n",
-           conn_info.getIdAddress().toString().c_str(),
-           conn_info.isBonded() ? "yes" : "no",
+           connectionInfo.getIdAddress().toString().c_str(),
+           connectionInfo.isBonded() ? "yes" : "no",
            NimBLEDevice::getNumBonds(),
            (int)_connections.size());
 }
 
-void BLEManager::send(std::string &target)
+void BLEManager::send(const std::string &target)
 {
   if (DEBUG)
   {
     printf("[BLE] send: connections=%d input=%s | mod=0x%02X keys=[%02X %02X %02X %02X %02X %02X], target=%s\n",
            (int)_connections.size(), _input ? "ok" : "NULL",
-           _report.mod,
+           _report.modifier,
            _report.keys[0], _report.keys[1], _report.keys[2],
            _report.keys[3], _report.keys[4], _report.keys[5], target.c_str());
   }
@@ -270,7 +267,7 @@ void BLEManager::send(std::string &target)
       _input->notify(); // broadcast to all connected peers
     else if (_connections.find(target) != _connections.end())
     {
-      auto handle = _connections[target];
+      const auto handle = _connections.at(target);
       _input->notify(handle);
     }
     else
@@ -281,7 +278,7 @@ void BLEManager::send(std::string &target)
   }
 }
 
-void BLEManager::sendCC(std::string &target)
+void BLEManager::sendCC(const std::string &target)
 {
   if (DEBUG)
     printf("[BLE] sendCC: connections=%d inputCC=%s | usage=0x%04X, target=%s\n",
@@ -295,7 +292,7 @@ void BLEManager::sendCC(std::string &target)
       _inputCC->notify(); // broadcast to all connected peers
     else if (_connections.find(target) != _connections.end())
     {
-      auto handle = _connections[target];
+      const auto handle = _connections.at(target);
       _inputCC->notify(handle);
     }
     else
@@ -306,13 +303,13 @@ void BLEManager::sendCC(std::string &target)
   }
 }
 
-bool BLEManager::isMediaKey(uint8_t k) { return mediaKeyToUsage(k) != 0; }
+bool BLEManager::isMediaKey(uint8_t keyCode) { return mediaKeyToUsage(keyCode) != 0; }
 
 // Maps a KEY_MEDIA_* constant to its USB Consumer Control HID usage code.
 // Returns 0 for non-media keys.
-uint16_t BLEManager::mediaKeyToUsage(uint8_t k)
+uint16_t BLEManager::mediaKeyToUsage(uint8_t keyCode)
 {
-  switch (k)
+  switch (keyCode)
   {
   case KEY_MEDIA_PLAY_PAUSE:
     return 0x00CD; // Play/Pause
@@ -334,111 +331,111 @@ uint16_t BLEManager::mediaKeyToUsage(uint8_t k)
 }
 
 // Convert Arduino-Keyboard / BleKeyboard code → HID scan code + modifier bit
-void BLEManager::toHID(uint8_t k, uint8_t &scan, uint8_t &mod)
+void BLEManager::toHID(uint8_t keyCode, uint8_t &scanCode, uint8_t &modifier)
 {
-  scan = 0;
-  mod = 0;
-  if (k >= 0x80 && k <= 0x87)
+  scanCode = 0;
+  modifier = 0;
+  if (keyCode >= 0x80 && keyCode <= 0x87)
   {
-    mod = 1 << (k - 0x80);
+    modifier = 1 << (keyCode - 0x80);
     return;
   } // modifier keys
-  if (k >= 32 && k <= 126)
+  if (keyCode >= 32 && keyCode <= 126)
   {
-    uint8_t e = _asciiToHid[k - 32];
-    if (e & 0x80)
+    uint8_t entry = _asciiToHid[keyCode - 32];
+    if (entry & 0x80)
     {
-      mod = 0x02;
-      scan = e & 0x7F;
+      modifier = 0x02;
+      scanCode = entry & 0x7F;
     }
     else
     {
-      scan = e;
+      scanCode = entry;
     }
     return;
   }
-  switch (k)
+  switch (keyCode)
   { // special keys
   case 0xB0:
-    scan = 0x28;
+    scanCode = 0x28;
     break; // Return
   case 0xB1:
-    scan = 0x29;
+    scanCode = 0x29;
     break; // Esc
   case 0xB2:
-    scan = 0x2A;
+    scanCode = 0x2A;
     break; // Backspace
   case 0xB3:
-    scan = 0x2B;
+    scanCode = 0x2B;
     break; // Tab
   case 0xC1:
-    scan = 0x39;
+    scanCode = 0x39;
     break; // Caps Lock
   case 0xC2:
-    scan = 0x3A;
+    scanCode = 0x3A;
     break; // F1
   case 0xC3:
-    scan = 0x3B;
+    scanCode = 0x3B;
     break; // F2
   case 0xC4:
-    scan = 0x3C;
+    scanCode = 0x3C;
     break; // F3
   case 0xC5:
-    scan = 0x3D;
+    scanCode = 0x3D;
     break; // F4
   case 0xC6:
-    scan = 0x3E;
+    scanCode = 0x3E;
     break; // F5
   case 0xC7:
-    scan = 0x3F;
+    scanCode = 0x3F;
     break; // F6
   case 0xC8:
-    scan = 0x40;
+    scanCode = 0x40;
     break; // F7
   case 0xC9:
-    scan = 0x41;
+    scanCode = 0x41;
     break; // F8
   case 0xCA:
-    scan = 0x42;
+    scanCode = 0x42;
     break; // F9
   case 0xCB:
-    scan = 0x43;
+    scanCode = 0x43;
     break; // F10
   case 0xCC:
-    scan = 0x44;
+    scanCode = 0x44;
     break; // F11
   case 0xCD:
-    scan = 0x45;
+    scanCode = 0x45;
     break; // F12
   case 0xD1:
-    scan = 0x49;
+    scanCode = 0x49;
     break; // Insert
   case 0xD2:
-    scan = 0x4A;
+    scanCode = 0x4A;
     break; // Home
   case 0xD3:
-    scan = 0x4B;
+    scanCode = 0x4B;
     break; // Page Up
   case 0xD4:
-    scan = 0x4C;
+    scanCode = 0x4C;
     break; // Delete
   case 0xD5:
-    scan = 0x4D;
+    scanCode = 0x4D;
     break; // End
   case 0xD6:
-    scan = 0x4E;
+    scanCode = 0x4E;
     break; // Page Down
   case 0xD7:
-    scan = 0x4F;
+    scanCode = 0x4F;
     break; // Right Arrow
   case 0xD8:
-    scan = 0x50;
+    scanCode = 0x50;
     break; // Left Arrow
   case 0xD9:
-    scan = 0x51;
+    scanCode = 0x51;
     break; // Down Arrow
   case 0xDA:
-    scan = 0x52;
+    scanCode = 0x52;
     break; // Up Arrow
   }
 }

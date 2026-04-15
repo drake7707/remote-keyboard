@@ -313,12 +313,17 @@ void WebUIConfigManager::_handleRoot(httpd_req_t *req)
 
 void WebUIConfigManager::_handleSave(httpd_req_t *req)
 {
+  printf("[SAVE] POST /save received, content_len=%d\n", req->content_len);
+
   std::string body;
   if (!_readBody(req, body))
   {
+    printf("[SAVE] ERROR: failed to read request body\n");
     httpd_resp_send_500(req);
     return;
   }
+
+  printf("[SAVE] Body read ok, size=%d\n", (int)body.size());
 
   for (int keymap = 0; keymap < 3; keymap++)
   {
@@ -410,6 +415,19 @@ void WebUIConfigManager::_handleSave(httpd_req_t *req)
         }
       }
     }
+    if (DEBUG)
+    {
+      for (int i = 0; i < 8; i++)
+      {
+        const KeyEntry &se = _configManager->rawShortEntry(keymap, i);
+        const KeyEntry &le = _configManager->rawLongEntry(keymap, i);
+        printf("[SAVE] km%d btn%d: short key=%d tgt=%d mac='%s' irA=0x%04X irC=0x%04X irR=%d"
+               "  long key=%d tgt=%d mac='%s' irA=0x%04X irC=0x%04X irR=%d\n",
+               keymap + 1, i + 1,
+               se.key, (int)se.target, se.mac, se.irAddress, se.irCommand, se.irRepeats,
+               le.key, (int)le.target, le.mac, le.irAddress, le.irCommand, le.irRepeats);
+      }
+    }
   }
 
   // Combos (per keymap slot)
@@ -422,6 +440,7 @@ void WebUIConfigManager::_handleSave(httpd_req_t *req)
     if (count < 0) count = 0;
     if (count > Config::MAX_COMBOS) count = Config::MAX_COMBOS;
     _configManager->setComboCount(keymap, (uint8_t)count);
+    printf("[SAVE] km%d combo count=%d (raw param='%s')\n", keymap + 1, count, countVal.c_str());
 
     for (int j = 0; j < count; j++)
     {
@@ -503,7 +522,15 @@ void WebUIConfigManager::_handleSave(httpd_req_t *req)
   if (maxConnections >= 1 && maxConnections <= 3)
     _configManager->setMaxBLEConnections((uint8_t)maxConnections);
 
+  printf("[SAVE] bleName='%s' (valid=%s) battEn=%s blePSave=%s maxConn=%d\n",
+         newBleName.c_str(), bleNameValid ? "yes" : "no",
+         _formParam(body.c_str(), "battery_enabled").c_str(),
+         _formParam(body.c_str(), "ble_power_saving").c_str(),
+         maxConnections);
+
+  printf("[SAVE] Calling saveConfig...\n");
   _configManager->saveConfig();
+  printf("[SAVE] saveConfig done\n");
 
   static const char resp[] =
       "<!DOCTYPE html><html>"

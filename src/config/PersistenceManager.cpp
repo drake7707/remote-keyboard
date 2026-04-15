@@ -1,4 +1,6 @@
 #include "config/PersistenceManager.h"
+#include <esp_err.h>
+#include <cstdio>
 
 // ---------------------------------------------------------------------------
 // loadConfig -- read all settings from NVS into 'config' in one pass.
@@ -245,13 +247,19 @@ void PersistenceManager::loadConfig(Config &config)
 // ---------------------------------------------------------------------------
 void PersistenceManager::saveConfig(const Config &config)
 {
+  printf("[CONFIG] saveConfig: starting\n");
+
   // --- Keymaps ---
   const char *const namespaces[3] = {"keymap", "keymap2", "keymap3"};
   for (int keymap = 0; keymap < 3; keymap++)
   {
     nvs_handle_t nvsHandle;
-    if (nvs_open(namespaces[keymap], NVS_READWRITE, &nvsHandle) != ESP_OK)
+    esp_err_t kmErr = nvs_open(namespaces[keymap], NVS_READWRITE, &nvsHandle);
+    if (kmErr != ESP_OK)
+    {
+      printf("[CONFIG] saveConfig: nvs_open('%s') failed: %s\n", namespaces[keymap], esp_err_to_name(kmErr));
       continue;
+    }
     for (int i = 0; i < 8; i++)
     {
       char nvsKey[8];
@@ -269,7 +277,9 @@ void PersistenceManager::saveConfig(const Config &config)
       snprintf(nvsKey, sizeof(nvsKey), "lic%d", i); nvs_set_u16(nvsHandle, nvsKey, config.longEntries[keymap][i].irCommand);
       snprintf(nvsKey, sizeof(nvsKey), "lir%d", i); nvs_set_u8( nvsHandle, nvsKey, config.longEntries[keymap][i].irRepeats);
     }
-    nvs_commit(nvsHandle);
+    esp_err_t kmCommitErr = nvs_commit(nvsHandle);
+    if (kmCommitErr != ESP_OK)
+      printf("[CONFIG] saveConfig: nvs_commit('%s') failed: %s\n", namespaces[keymap], esp_err_to_name(kmCommitErr));
     nvs_close(nvsHandle);
   }
   if (DEBUG)
@@ -281,8 +291,12 @@ void PersistenceManager::saveConfig(const Config &config)
     for (int keymap = 0; keymap < 3; keymap++)
     {
       nvs_handle_t nvsHandle;
-      if (nvs_open(comboNs[keymap], NVS_READWRITE, &nvsHandle) != ESP_OK)
+      esp_err_t cErr = nvs_open(comboNs[keymap], NVS_READWRITE, &nvsHandle);
+      if (cErr != ESP_OK)
+      {
+        printf("[CONFIG] saveConfig: nvs_open('%s') failed: %s\n", comboNs[keymap], esp_err_to_name(cErr));
         continue;
+      }
       nvs_set_u8(nvsHandle, "cc", config.comboCounts[keymap]);
       for (int j = 0; j < config.comboCounts[keymap]; j++)
       {
@@ -298,7 +312,9 @@ void PersistenceManager::saveConfig(const Config &config)
         snprintf(nvsKey, sizeof(nvsKey), "cic%d", j); nvs_set_u16(nvsHandle, nvsKey, c.irCommand);
         snprintf(nvsKey, sizeof(nvsKey), "cir%d", j); nvs_set_u8( nvsHandle, nvsKey, c.irRepeats);
       }
-      nvs_commit(nvsHandle);
+      esp_err_t cCommitErr = nvs_commit(nvsHandle);
+      if (cCommitErr != ESP_OK)
+        printf("[CONFIG] saveConfig: nvs_commit('%s') failed: %s\n", comboNs[keymap], esp_err_to_name(cCommitErr));
       nvs_close(nvsHandle);
     }
   }
@@ -308,11 +324,18 @@ void PersistenceManager::saveConfig(const Config &config)
   // --- BLE name ---
   {
     nvs_handle_t nvsHandle;
-    if (nvs_open("config", NVS_READWRITE, &nvsHandle) == ESP_OK)
+    esp_err_t cfgErr = nvs_open("config", NVS_READWRITE, &nvsHandle);
+    if (cfgErr == ESP_OK)
     {
       nvs_set_str(nvsHandle, "blename", config.bleName);
-      nvs_commit(nvsHandle);
+      esp_err_t cfgCommitErr = nvs_commit(nvsHandle);
+      if (cfgCommitErr != ESP_OK)
+        printf("[CONFIG] saveConfig: nvs_commit('config') failed: %s\n", esp_err_to_name(cfgCommitErr));
       nvs_close(nvsHandle);
+    }
+    else
+    {
+      printf("[CONFIG] saveConfig: nvs_open('config') failed: %s\n", esp_err_to_name(cfgErr));
     }
   }
   if (DEBUG)
@@ -321,14 +344,21 @@ void PersistenceManager::saveConfig(const Config &config)
   // --- Active keymap + flags ---
   {
     nvs_handle_t nvsHandle;
-    if (nvs_open("sys", NVS_READWRITE, &nvsHandle) == ESP_OK)
+    esp_err_t sysErr = nvs_open("sys", NVS_READWRITE, &nvsHandle);
+    if (sysErr == ESP_OK)
     {
       nvs_set_u8(nvsHandle, "activekm",   (uint8_t)config.activeKeymap);
       nvs_set_u8(nvsHandle, "baten",      config.batteryEnabled  ? 1 : 0);
       nvs_set_u8(nvsHandle, "blepsen",    config.blePowerSaving  ? 1 : 0);
       nvs_set_u8(nvsHandle, "maxbleconn", config.maxBLEConnections);
-      nvs_commit(nvsHandle);
+      esp_err_t sysCommitErr = nvs_commit(nvsHandle);
+      if (sysCommitErr != ESP_OK)
+        printf("[CONFIG] saveConfig: nvs_commit('sys') failed: %s\n", esp_err_to_name(sysCommitErr));
       nvs_close(nvsHandle);
+    }
+    else
+    {
+      printf("[CONFIG] saveConfig: nvs_open('sys') failed: %s\n", esp_err_to_name(sysErr));
     }
   }
   if (DEBUG)
